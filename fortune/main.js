@@ -12,7 +12,7 @@
  */
 /**
  * @typedef {object} VertexEvent
- * @property {ActiveSite[]} sites
+ * @property {ParabolaArc[]} arcs
  * @property {Coordinate} eventPoint
  * @property {Coordinate} vertexPoint
  */
@@ -30,6 +30,12 @@
  * @typedef {object} ParabolaArc
  * @property {ActiveSite} activeSite
  * @property {ParabolaArc} rightArc
+ * @property {ParabolaArc} leftArc
+ */
+/**
+ * @typedef {object} CircleResult
+ * @property {Coordinate} centre
+ * @property {number} radius
  */
 
 /**
@@ -45,6 +51,30 @@ function parabolaPoint(focus, directrix, xPos) {
         y: ((((focus.x - xPos) * (focus.x - xPos)) + (focus.y * focus.y)) / (2 * focus.y)) +
             directrix
     }
+}
+
+/**
+ * @param {Coordinate} a
+ * @param {Coordinate} b
+ * @param {Coordinate} c
+ * @returns {CircleResult}
+ */
+function circle(a, b, c) {
+    const ax2 = a.x * a.x
+    const bx2 = b.x * b.x
+    const cx2 = c.x * c.x
+    const ay2 = a.y * a.y
+    const by2 = b.y * b.y
+    const cy2 = c.y * c.y
+
+    const centreX = (((c.y - a.y) * (bx2 - ax2 + by2 - ay2)) - ((b.y - a.y) * (cx2 - ax2 + cy2 - ay2))) /
+        (2 * ((b.x - a.x) * (c.y - a.y) + (c.x - a.x) * (b.y - a.y)))
+    const centreY = (ax2 - bx2 + ay2 - by2 + 2 * centreX * (b.x - a.x)) / (2 * (a.y - b.y))
+    const radius = Math.sqrt((a.x - centreX) * (a.x - centreX) + (a.y - centreY) * (a.y - centreY))
+    console.log(radius)
+    console.log(Math.sqrt((b.x - centreX) * (b.x - centreX) + (b.y - centreY) * (b.y - centreY)))
+    console.log(Math.sqrt((c.x - centreX) * (c.x - centreX) + (c.y - centreY) * (c.y - centreY)))
+    return { centre: { x: centreX, y: centreY }, radius: radius }
 }
 
 function PriorityQueue() {
@@ -68,6 +98,14 @@ PriorityQueue.prototype.pushSiteEvents = function(values) {
  */
 PriorityQueue.prototype.pushVertexEvents = function(values) {
     this.vertexEvents = values
+    this.sortVertices()
+}
+
+/**
+ * @param {VertexEvent[]} values
+ */
+PriorityQueue.prototype.removeVertexEvents = function(values) {
+    this.vertexEvents = this.vertexEvents.filter(function(element) { values.indexOf(element) > -1 })
     this.sortVertices()
 }
 
@@ -136,16 +174,16 @@ function VoronoiDiagram() {
     /**@type {ActiveSite[]} */
     this.activeSites = []
     this.lineSweepPosition = 0
+    this.queue = new PriorityQueue()
 }
 
 /**
  * @param {Coordinate[]} sites
  */
 VoronoiDiagram.prototype.compute =  function(sites) {
-    const queue = new PriorityQueue()
-    queue.pushSiteEvents(sites)
+    this.queue.pushSiteEvents(sites)
 
-    while (!queue.isEmpty()) {
+    while (!this.queue.isEmpty()) {
     }
 }
 
@@ -193,10 +231,12 @@ VoronoiDiagram.prototype.insertSite = function(site) {
 
     // Split containing arc and insert new arc between them
     /**@type {ParabolaArc} */
-    let splitArc = { activeSite: closestParabolaSite, rightArc: containingArc.rightArc }
+    let splitArc = { activeSite: closestParabolaSite, rightArc: containingArc.rightArc, leftArc: null }
     /**@type {ParabolaArc} */
-    let insertedArc = { activeSite: null, rightArc: splitArc }
+    let insertedArc = { activeSite: null, rightArc: splitArc, leftArc: null }
     containingArc.rightArc = insertedArc
+    insertedArc.leftArc = containingArc
+    splitArc.leftArc = insertedArc
 
     /**@type {ActiveSite} */
     let insertedSite = { site: site, arcs: [insertedArc] }
@@ -208,6 +248,28 @@ VoronoiDiagram.prototype.insertSite = function(site) {
 /**
  * @param {ActiveSite} site
  */
-VoronoiDiagram.prototype.insertVertexEvents = function(site) {
+VoronoiDiagram.prototype.updateVertexEvents = function(site) {
     const arc = site.arcs[0]
+    /**@type {VertexEvent[]} */
+    const brokenVertexEvents = []
+    this.queue.vertexEvents.forEach(function(event) {
+        if (event.arcs[0].rightArc == arc || event.arcs[1].rightArc == arc) {
+            brokenVertexEvents.push(event)
+        }
+    })
+    this.queue.removeVertexEvents(brokenVertexEvents)
+    const possibleTriples = [
+        [arc.activeSite, arc.rightArc.activeSite, arc.rightArc.rightArc.activeSite],
+        [arc.leftArc.activeSite, arc.activeSite, arc.rightArc.activeSite],
+        [arc.leftArc.leftArc.activeSite, arc.leftArc.activeSite, arc.activeSite]
+    ]
+    const validTriples = possibleTriples.filter(function(triple) {
+        return triple[0] != triple[1] && triple[0] != triple[2] && triple[1] != triple[2]
+    })
 }
+
+console.log(circle(
+    { x:  4.35, y:  9.00 },
+    { x: -9.95, y:  1.00 },
+    { x: -5.00, y: -8.66 }
+))
