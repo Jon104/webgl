@@ -7,19 +7,29 @@
  * @property {number} y
  */
 /**
- * @typedef {object} SweepEvent
+ * @typedef {object} SiteEvent
  * @property {Coordinate} point
- * @property {boolean} isVertex
  */
 /**
- * @typedef {object} ParabolaArc
- * @property {Coordinate} left
- * @property {Coordinate} right
+ * @typedef {object} VertexEvent
+ * @property {ActiveSite[]} sites
+ * @property {Coordinate} eventPoint
+ * @property {Coordinate} vertexPoint
+ */
+/**
+ * @typedef {object} EventResult
+ * @property {boolean} isSiteEvent
+ * @property {SiteEvent | VertexEvent} event
  */
 /**
  * @typedef {object} ActiveSite
  * @property {Coordinate} site
  * @property {ParabolaArc[]} arcs
+ */
+/**
+ * @typedef {object} ParabolaArc
+ * @property {ActiveSite} activeSite
+ * @property {ParabolaArc} rightArc
  */
 
 /**
@@ -38,36 +48,37 @@ function parabolaPoint(focus, directrix, xPos) {
 }
 
 function PriorityQueue() {
-    /**@type {SweepEvent[]} */
-    this.values = []
-    this.sort()
+    /**@type {SiteEvent[]} */
+    this.siteEvents = []
+    /**@type {VertexEvent[]} */
+    this.vertexEvents = []
 }
 
 /**
  * @param {Coordinate[]} values
  */
 PriorityQueue.prototype.pushSiteEvents = function(values) {
-    /**@type {SweepEvent[]} */
-    this.values = values.map(function(element) { return { point: element, isVertex: false } })
-    this.sort()
+    /**@type {SiteEvent[]} */
+    this.siteEvents = values.map(function(element) { return { point: element } })
+    this.sortSites()
 }
 
 /**
- * @param {Coordinate} value
+ * @param {VertexEvent[]} values
  */
-PriorityQueue.prototype.pushVertexEvent = function(value) {
-    this.values.push({ point: value, isVertex: true })
-    this.sort()
+PriorityQueue.prototype.pushVertexEvents = function(values) {
+    this.vertexEvents = values
+    this.sortVertices()
 }
 
 /**
  * @returns {boolean}
  */
-PriorityQueue.prototype.isEmpty = function() { return this.values.length == 0 }
+PriorityQueue.prototype.isEmpty = function() { return this.siteEvents.length == 0 }
 
-PriorityQueue.prototype.sort = function() {
-    // sort in reverse order as last element is what's popped
-    this.values.sort(function(a, b) {
+PriorityQueue.prototype.sortSites = function() {
+    // sort in descending order as last element is what's popped
+    this.siteEvents.sort(function(a, b) {
         if (a.point.y == b.point.y) {
             return 0
         }
@@ -80,11 +91,42 @@ PriorityQueue.prototype.sort = function() {
     })
 }
 
+PriorityQueue.prototype.sortVertices = function() {
+    // sort in descending order as last element is what's popped
+    this.vertexEvents.sort(function(a, b) {
+        if (a.eventPoint.y == b.eventPoint.y) {
+            return 0
+        }
+        else if (a.eventPoint.y > b.eventPoint.y) {
+            return -1
+        }
+        else {
+            return 1
+        }
+    })
+}
+
 /**
- * @returns {SweepEvent}
+ * @returns {EventResult}
  */
 PriorityQueue.prototype.pop = function() {
-    return this.values.pop()
+    if (this.siteEvents.length == 0) {
+        return { isSiteEvent: true, event: this.siteEvents.pop() }
+    }
+    if (this.vertexEvents.length == 0) {
+        return { isSiteEvent: false, event: this.vertexEvents.pop() }
+    }
+
+    const nextSiteEvent = this.siteEvents.pop()
+    const nextVertexEvent = this.vertexEvents.pop()
+    if (nextSiteEvent.point.y < nextVertexEvent.eventPoint.y) {
+        this.vertexEvents.push(nextVertexEvent)
+        return { isSiteEvent: true, event: nextSiteEvent }
+    }
+    else {
+        this.siteEvents.push(nextSiteEvent)
+        return { isSiteEvent: false, event: nextVertexEvent }
+    }
 }
 
 
@@ -109,39 +151,63 @@ VoronoiDiagram.prototype.compute =  function(sites) {
 
 /**
  * @param {Coordinate} site
+ * @returns {ActiveSite}
  */
 VoronoiDiagram.prototype.insertSite = function(site) {
+    const self = this
+    let closestParabolaYDistance = Infinity;
     /**@type {ActiveSite} */
-    let containingSite = null
+    let closestParabolaSite = null;
+    let closestParabolaIndex = 0
+    this.activeSites.forEach(function(element, index) {
+        let yDist = parabolaPoint(element.site, self.lineSweepPosition, site.x).y
+        if (yDist < closestParabolaYDistance) {
+            closestParabolaYDistance = yDist
+            closestParabolaSite = element
+            closestParabolaIndex = index
+        }
+    })
+
     /**@type {ParabolaArc} */
-    let containingParabola = null
-    let containingParabolaIndex = 0
-    this.activeSites.forEach(function(activeSite) {
-        activeSite.arcs.forEach(function(arc, index) {
-            if (arc.left.x < site.x && arc.right.x > site.x) {
-                containingParabola = arc
-                containingParabolaIndex = index
+    let containingArc = null
+    let containingArcIndex = 0
+    if (closestParabolaSite.arcs.length == 1) {
+        containingArc = closestParabolaSite.arcs[0]
+        containingArcIndex = 0
+    }
+    else {
+        // If there's more than one arc on the parabola then there's another parabola subdividing it and checking the position of the related site point
+        // should indicate which arc the new site falls on
+        closestParabolaSite.arcs.forEach(function(arc, index) {
+            if (arc.rightArc.activeSite.site.x > site.x) {
+                containingArc = arc.rightArc
+                containingArcIndex = index
                 return
             }
         })
-        if (containingParabola != null) {
-            containingSite = activeSite
-            return
-        }
-    })
-    let splittingPoint = site.x
-    /**@type {ParabolaArc[]} */
-    let dividedArcs = [
-        {
-            left: { x: containingParabola.left.x, y: containingParabola.left.y },
-            right: { x: 0, y: 0 }
-        },
-        {
-            left: { x: 0, y: 0 },
-            right: { x: 0, y: 0 }
-        }
-    ]
-    // dividedSite.arcs.splice(dividedParabolaIndex, 1,)
+        // If the end is reached without the containing arc found then it must be the last arc
+        // of the parabola, with its right neighbour being the parabola that this parabola subdivides
+        containingArcIndex = closestParabolaSite.arcs.length - 1
+        containingArc = closestParabolaSite.arcs[containingArcIndex]
+    }
+
+    // Split containing arc and insert new arc between them
+    /**@type {ParabolaArc} */
+    let splitArc = { activeSite: closestParabolaSite, rightArc: containingArc.rightArc }
+    /**@type {ParabolaArc} */
+    let insertedArc = { activeSite: null, rightArc: splitArc }
+    containingArc.rightArc = insertedArc
+
+    /**@type {ActiveSite} */
+    let insertedSite = { site: site, arcs: [insertedArc] }
+    insertedArc.activeSite = insertedSite
+    this.activeSites.push(insertedSite)
+    return insertedSite
 }
 
-console.log(parabolaPoint({ x: 5, y: 12 }, 0, -4))
+/**
+ * @param {ActiveSite} site
+ */
+VoronoiDiagram.prototype.insertVertexEvents = function(site) {
+    const arc = site.arcs[0]
+}
