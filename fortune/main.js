@@ -19,7 +19,8 @@
 /**
  * @typedef {object} EventResult
  * @property {boolean} isSiteEvent
- * @property {SiteEvent | VertexEvent} event
+ * @property {SiteEvent} siteEvent
+ * @property {VertexEvent} vertexEvent
  */
 /**
  * @typedef {object} ActiveSite
@@ -71,9 +72,6 @@ function circle(a, b, c) {
         (2 * ((b.x - a.x) * (c.y - a.y) + (c.x - a.x) * (b.y - a.y)))
     const centreY = (ax2 - bx2 + ay2 - by2 + 2 * centreX * (b.x - a.x)) / (2 * (a.y - b.y))
     const radius = Math.sqrt((a.x - centreX) * (a.x - centreX) + (a.y - centreY) * (a.y - centreY))
-    console.log(radius)
-    console.log(Math.sqrt((b.x - centreX) * (b.x - centreX) + (b.y - centreY) * (b.y - centreY)))
-    console.log(Math.sqrt((c.x - centreX) * (c.x - centreX) + (c.y - centreY) * (c.y - centreY)))
     return { centre: { x: centreX, y: centreY }, radius: radius }
 }
 
@@ -112,7 +110,7 @@ PriorityQueue.prototype.removeVertexEvents = function(values) {
 /**
  * @returns {boolean}
  */
-PriorityQueue.prototype.isEmpty = function() { return this.siteEvents.length == 0 }
+PriorityQueue.prototype.isEmpty = function() { return this.siteEvents.length == 0 && this.vertexEvents.length == 0 }
 
 PriorityQueue.prototype.sortSites = function() {
     // sort in descending order as last element is what's popped
@@ -148,22 +146,22 @@ PriorityQueue.prototype.sortVertices = function() {
  * @returns {EventResult}
  */
 PriorityQueue.prototype.pop = function() {
-    if (this.siteEvents.length == 0) {
-        return { isSiteEvent: true, event: this.siteEvents.pop() }
-    }
     if (this.vertexEvents.length == 0) {
-        return { isSiteEvent: false, event: this.vertexEvents.pop() }
+        return { isSiteEvent: true, siteEvent: this.siteEvents.pop(), vertexEvent: null }
+    }
+    if (this.siteEvents.length == 0) {
+        return { isSiteEvent: false, vertexEvent: this.vertexEvents.pop(), siteEvent: null }
     }
 
     const nextSiteEvent = this.siteEvents.pop()
     const nextVertexEvent = this.vertexEvents.pop()
     if (nextSiteEvent.point.y < nextVertexEvent.eventPoint.y) {
         this.vertexEvents.push(nextVertexEvent)
-        return { isSiteEvent: true, event: nextSiteEvent }
+        return { isSiteEvent: true, siteEvent: nextSiteEvent, vertexEvent: null }
     }
     else {
         this.siteEvents.push(nextSiteEvent)
-        return { isSiteEvent: false, event: nextVertexEvent }
+        return { isSiteEvent: false, vertexEvent: nextVertexEvent, siteEvent: null }
     }
 }
 
@@ -182,9 +180,38 @@ function VoronoiDiagram() {
  */
 VoronoiDiagram.prototype.compute =  function(sites) {
     this.queue.pushSiteEvents(sites)
+    this.insertFirstSite(this.queue.pop().siteEvent.point)
+    logBeachLine(this.activeSites[0].arcs[0])
 
     while (!this.queue.isEmpty()) {
+        const nextEvent = this.queue.pop()
+        if (nextEvent.isSiteEvent) {
+            this.lineSweepPosition = nextEvent.siteEvent.point.y
+            const activeSite = this.insertSite(nextEvent.siteEvent.point)
+            this.updateVertexEvents(activeSite)
+        }
+        else {
+            this.lineSweepPosition = nextEvent.vertexEvent.eventPoint.y
+            this.processVertexEvent(nextEvent.vertexEvent)
+        }
+        
+        console.log(this.queue.vertexEvents.map(function(event) {
+            return { left: event.arcs[0].activeSite.site, middle: event.arcs[1].activeSite.site, right: event.arcs[2].activeSite.site }
+        }))
+        // logBeachLine(this.activeSites[0].arcs[0])
     }
+}
+
+/**
+ * @param {Coordinate} site
+ * @returns {ActiveSite}
+ */
+VoronoiDiagram.prototype.insertFirstSite = function(site) {
+    /**@type {ActiveSite} */
+    const firstSite = { site: site, arcs: null }
+    this.activeSites.push(firstSite)
+    firstSite.arcs = [{ activeSite: this.activeSites[0], leftArc: null, rightArc: null }]
+    return firstSite
 }
 
 /**
@@ -193,55 +220,67 @@ VoronoiDiagram.prototype.compute =  function(sites) {
  */
 VoronoiDiagram.prototype.insertSite = function(site) {
     const self = this
-    let closestParabolaYDistance = Infinity;
+    // highest y value is closest to the sweep line
+    let closestParabolaYDistance = -Infinity;
     /**@type {ActiveSite} */
     let closestParabolaSite = null;
-    let closestParabolaIndex = 0
-    this.activeSites.forEach(function(element, index) {
+    this.activeSites.forEach(function(element) {
         let yDist = parabolaPoint(element.site, self.lineSweepPosition, site.x).y
-        if (yDist < closestParabolaYDistance) {
+        if (yDist > closestParabolaYDistance) {
             closestParabolaYDistance = yDist
             closestParabolaSite = element
-            closestParabolaIndex = index
         }
     })
 
     /**@type {ParabolaArc} */
     let containingArc = null
-    let containingArcIndex = 0
     if (closestParabolaSite.arcs.length == 1) {
         containingArc = closestParabolaSite.arcs[0]
-        containingArcIndex = 0
     }
     else {
         // If there's more than one arc on the parabola then there's another parabola subdividing it and checking the position of the related site point
         // should indicate which arc the new site falls on
-        closestParabolaSite.arcs.forEach(function(arc, index) {
+        closestParabolaSite.arcs.slice(0, closestParabolaSite.arcs.length - 1).forEach(function(arc) {
             if (arc.rightArc.activeSite.site.x > site.x) {
-                containingArc = arc.rightArc
-                containingArcIndex = index
+                containingArc = arc
                 return
             }
         })
         // If the end is reached without the containing arc found then it must be the last arc
         // of the parabola, with its right neighbour being the parabola that this parabola subdivides
-        containingArcIndex = closestParabolaSite.arcs.length - 1
-        containingArc = closestParabolaSite.arcs[containingArcIndex]
+        // or null if this is the last parabola on the beachline
+        if (containingArc == null) {
+            containingArc = closestParabolaSite.arcs[closestParabolaSite.arcs.length - 1]
+        }
     }
 
     // Split containing arc and insert new arc between them
     /**@type {ParabolaArc} */
-    let splitArc = { activeSite: closestParabolaSite, rightArc: containingArc.rightArc, leftArc: null }
+    const splitArc = { activeSite: closestParabolaSite, rightArc: containingArc.rightArc, leftArc: null }
     /**@type {ParabolaArc} */
-    let insertedArc = { activeSite: null, rightArc: splitArc, leftArc: null }
+    const insertedArc = { activeSite: null, rightArc: splitArc, leftArc: null }
     containingArc.rightArc = insertedArc
     insertedArc.leftArc = containingArc
     splitArc.leftArc = insertedArc
 
     /**@type {ActiveSite} */
-    let insertedSite = { site: site, arcs: [insertedArc] }
+    const insertedSite = { site: site, arcs: [insertedArc] }
     insertedArc.activeSite = insertedSite
     this.activeSites.push(insertedSite)
+
+    closestParabolaSite.arcs.push(splitArc)
+    closestParabolaSite.arcs.sort(function(a, b) {
+        if (a.rightArc == null) {
+            return 1
+        }
+        else if (b.rightArc == null) {
+            return -1
+        }
+        else {
+            return a.rightArc.activeSite.site.x - b.rightArc.activeSite.site.x
+        }
+    })
+
     return insertedSite
 }
 
@@ -259,17 +298,59 @@ VoronoiDiagram.prototype.updateVertexEvents = function(site) {
     })
     this.queue.removeVertexEvents(brokenVertexEvents)
     const possibleTriples = [
-        [arc.activeSite, arc.rightArc.activeSite, arc.rightArc.rightArc.activeSite],
-        [arc.leftArc.activeSite, arc.activeSite, arc.rightArc.activeSite],
-        [arc.leftArc.leftArc.activeSite, arc.leftArc.activeSite, arc.activeSite]
+        [arc, arc.rightArc, arc.rightArc.rightArc],
+        [arc.leftArc, arc, arc.rightArc],
+        [arc.leftArc.leftArc, arc.leftArc, arc]
     ]
-    const validTriples = possibleTriples.filter(function(triple) {
-        return triple[0] != triple[1] && triple[0] != triple[2] && triple[1] != triple[2]
+    const validTriples = possibleTriples
+    .filter(function(triple) {
+        return triple[0] != null && triple[1] != null && triple[2] != null
     })
+    .filter(function(triple) {
+        return triple[0].activeSite != triple[1].activeSite && triple[0].activeSite != triple[2].activeSite && triple[1].activeSite != triple[2].activeSite
+    })
+    /**@type {VertexEvent[]} */
+    const vertexEvents = validTriples.map(function(triple) {
+        const circleResult = circle(triple[0].activeSite.site, triple[1].activeSite.site, triple[2].activeSite.site)
+        const eventPoint = { x: circleResult.centre.x, y: circleResult.centre.y + circleResult.radius }
+        return { arcs: triple, vertexPoint: circleResult.centre, eventPoint: eventPoint }
+    })
+    this.queue.pushVertexEvents(vertexEvents)
 }
 
-console.log(circle(
-    { x:  4.35, y:  9.00 },
-    { x: -9.95, y:  1.00 },
-    { x: -5.00, y: -8.66 }
-))
+/**
+ * @param {VertexEvent} vertexEvent
+ */
+VoronoiDiagram.prototype.processVertexEvent = function(vertexEvent) {
+    this.vertices.push(vertexEvent.vertexPoint)
+    const deletedArc = vertexEvent.arcs[1]
+    deletedArc.activeSite.arcs = deletedArc.activeSite.arcs.filter(function(arc) { return arc != deletedArc })
+    vertexEvent.arcs[0].rightArc = vertexEvent.arcs[2]
+    vertexEvent.arcs[2].leftArc = vertexEvent.arcs[0]
+}
+
+/**
+ * @param {ParabolaArc} randomArc
+ */
+function logBeachLine(randomArc) {
+    let currentArc = randomArc
+    while (currentArc.leftArc != null) {
+        currentArc = currentArc.leftArc
+    }
+
+    console.log('beachline start')
+    while(currentArc != null) {
+        console.log(currentArc.activeSite.site)
+        currentArc = currentArc.rightArc
+    }
+}
+
+const diagram = new VoronoiDiagram()
+/**@type {Coordinate[]} */
+const sites = [
+    { x: 2, y: 2 },
+    { x: 8, y: 4 },
+    { x: 2, y: 8 },
+    { x: 8, y: 12 }
+]
+diagram.compute(sites)
