@@ -61,18 +61,20 @@ function parabolaPoint(focus, directrix, xPos) {
  * @returns {CircleResult}
  */
 function circle(a, b, c) {
-    const ax2 = a.x * a.x
-    const bx2 = b.x * b.x
-    const cx2 = c.x * c.x
-    const ay2 = a.y * a.y
-    const by2 = b.y * b.y
-    const cy2 = c.y * c.y
-
-    const centreX = (((c.y - a.y) * (bx2 - ax2 + by2 - ay2)) - ((b.y - a.y) * (cx2 - ax2 + cy2 - ay2))) /
-        (2 * ((b.x - a.x) * (c.y - a.y) + (c.x - a.x) * (b.y - a.y)))
-    const centreY = (ax2 - bx2 + ay2 - by2 + 2 * centreX * (b.x - a.x)) / (2 * (a.y - b.y))
-    const radius = Math.sqrt((a.x - centreX) * (a.x - centreX) + (a.y - centreY) * (a.y - centreY))
-    return { centre: { x: centreX, y: centreY }, radius: radius }
+    const mabx = (a.x + b.x) / 2
+    const maby = (a.y + b.y) / 2
+    const mbcx = (b.x + c.x) / 2
+    const mbcy = (b.y + c.y) / 2
+    const macx = (a.x + c.x) / 2
+    const macy = (a.y + c.y) / 2
+    const igab = (a.x - b.x) / (b.y - a.y)
+    const igbc = (b.x - c.x) / (c.y - b.y)
+    const igca = (c.x - a.x) / (a.y - c.y)
+    const xVal = (-mbcx * igbc + mbcy - macx * igca + macy + 2 * (mabx * igab - maby)) /
+        (2 * igab - igbc - igca)
+    const yVal = (xVal - mabx) * igab + maby
+    const radius = Math.sqrt((a.x - xVal) * (a.x - xVal) + (a.y - yVal) * (a.y - yVal))
+    return { centre: { x: xVal, y: yVal }, radius: radius }
 }
 
 function PriorityQueue() {
@@ -95,7 +97,7 @@ PriorityQueue.prototype.pushSiteEvents = function(values) {
  * @param {VertexEvent[]} values
  */
 PriorityQueue.prototype.pushVertexEvents = function(values) {
-    this.vertexEvents = values
+    this.vertexEvents = this.vertexEvents.concat(values)
     this.sortVertices()
 }
 
@@ -103,7 +105,7 @@ PriorityQueue.prototype.pushVertexEvents = function(values) {
  * @param {VertexEvent[]} values
  */
 PriorityQueue.prototype.removeVertexEvents = function(values) {
-    this.vertexEvents = this.vertexEvents.filter(function(element) { values.indexOf(element) > -1 })
+    this.vertexEvents = this.vertexEvents.filter(function(element) { return values.indexOf(element) == -1 })
     this.sortVertices()
 }
 
@@ -186,18 +188,21 @@ VoronoiDiagram.prototype.compute =  function(sites) {
     while (!this.queue.isEmpty()) {
         const nextEvent = this.queue.pop()
         if (nextEvent.isSiteEvent) {
+            console.log('site event')
             this.lineSweepPosition = nextEvent.siteEvent.point.y
             const activeSite = this.insertSite(nextEvent.siteEvent.point)
             this.updateVertexEvents(activeSite)
         }
         else {
+            console.log('vertex event')
             this.lineSweepPosition = nextEvent.vertexEvent.eventPoint.y
             this.processVertexEvent(nextEvent.vertexEvent)
         }
         
-        console.log(this.queue.vertexEvents.map(function(event) {
-            return { left: event.arcs[0].activeSite.site, middle: event.arcs[1].activeSite.site, right: event.arcs[2].activeSite.site }
-        }))
+        console.log(this.vertices)
+        // console.log(this.queue.vertexEvents.map(function(event) {
+        //     return { left: event.arcs[0].activeSite.site, middle: event.arcs[1].activeSite.site, right: event.arcs[2].activeSite.site }
+        // }))
         // logBeachLine(this.activeSites[0].arcs[0])
     }
 }
@@ -296,22 +301,32 @@ VoronoiDiagram.prototype.updateVertexEvents = function(site) {
             brokenVertexEvents.push(event)
         }
     })
+    // console.log('broken triples ' + JSON.stringify(brokenVertexEvents.map(function(event) {
+    //     return { left: event.arcs[0].activeSite.site, middle: event.arcs[1].activeSite.site, right: event.arcs[2].activeSite.site }
+    // })))
     this.queue.removeVertexEvents(brokenVertexEvents)
-    const possibleTriples = [
-        [arc, arc.rightArc, arc.rightArc.rightArc],
-        [arc.leftArc, arc, arc.rightArc],
-        [arc.leftArc.leftArc, arc.leftArc, arc]
-    ]
-    const validTriples = possibleTriples
-    .filter(function(triple) {
-        return triple[0] != null && triple[1] != null && triple[2] != null
-    })
-    .filter(function(triple) {
-        return triple[0].activeSite != triple[1].activeSite && triple[0].activeSite != triple[2].activeSite && triple[1].activeSite != triple[2].activeSite
-    })
+    const leftTriple = [arc.leftArc.leftArc, arc.leftArc, arc]
+    const rightTriple = [arc, arc.rightArc, arc.rightArc.rightArc]
+    /**@type {ParabolaArc[][]} */
+    const validTriples = []
+    if (leftTriple[0] != null && leftTriple[1] != null && leftTriple[2] != null) {
+        if (arc.leftArc.leftArc.activeSite.site.x < arc.leftArc.activeSite.site.x) {
+            validTriples.push(leftTriple)
+        }
+    }
+
+    if (rightTriple[0] != null && rightTriple[1] != null && rightTriple[2] != null) {
+        if (arc.rightArc.rightArc.activeSite.site.x > arc.rightArc.activeSite.site.x) {
+            validTriples.push(rightTriple)
+        }
+    }
+
     /**@type {VertexEvent[]} */
     const vertexEvents = validTriples.map(function(triple) {
         const circleResult = circle(triple[0].activeSite.site, triple[1].activeSite.site, triple[2].activeSite.site)
+        console.log('triple: ' + JSON.stringify(triple.map(function(element) { return element.activeSite.site })))
+        console.log('vertex calculated: ' + JSON.stringify(circleResult.centre))
+        console.log('radius calculated: ' + circleResult.radius)
         const eventPoint = { x: circleResult.centre.x, y: circleResult.centre.y + circleResult.radius }
         return { arcs: triple, vertexPoint: circleResult.centre, eventPoint: eventPoint }
     })
