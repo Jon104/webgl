@@ -67,9 +67,27 @@ function circle(a, b, c) {
     const mbcy = (b.y + c.y) / 2
     const macx = (a.x + c.x) / 2
     const macy = (a.y + c.y) / 2
-    const igab = (a.x - b.x) / (b.y - a.y)
-    const igbc = (b.x - c.x) / (c.y - b.y)
-    const igca = (c.x - a.x) / (a.y - c.y)
+    let igab = 0
+    let igbc = 0
+    let igca = 0
+    if (b.y - a.y == 0) {
+        igab = (a.x - b.x) / Number.EPSILON
+    }
+    else {
+        igab = (a.x - b.x) / (b.y - a.y)
+    }
+    if (c.y - b.y == 0) {
+        igbc = (b.x - c.x) / Number.EPSILON
+    }
+    else {
+        igbc = (b.x - c.x) / (c.y - b.y)
+    }
+    if (a.y - c.y == 0) {
+        igca = (c.x - a.x) / Number.EPSILON
+    }
+    else {
+        igca = (c.x - a.x) / (a.y - c.y)
+    }
     const xVal = (-mbcx * igbc + mbcy - macx * igca + macy + 2 * (mabx * igab - maby)) /
         (2 * igab - igbc - igca)
     const yVal = (xVal - mabx) * igab + maby
@@ -363,9 +381,14 @@ function logBeachLine(randomArc) {
 const diagram = new VoronoiDiagram()
 /**@type {Coordinate[]} */
 const sites = [
-    { x: 2, y: 2 },
+    { x: 2, y: 9 },
+    { x: 3, y: 7 },
+    { x: 3, y: 2 },
+    { x: 5, y: 2 },
+    { x: 5, y: 5 },
+    { x: 6, y: 6 },
+    { x: 7, y: 1 },
     { x: 8, y: 4 },
-    { x: 2, y: 8 },
-    { x: 8, y: 12 }
+    { x: 8, y: 8 }
 ]
 diagram.compute(sites)
