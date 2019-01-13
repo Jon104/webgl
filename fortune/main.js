@@ -109,7 +109,7 @@ function circle(a, b, c) {
  */
 function segmentY(a, b, xVal) {
     let gradient = 0
-    if (b.y - a.y == 0) {
+    if (b.x - a.x == 0) {
         gradient = Number.EPSILON
     }
     else {
@@ -127,7 +127,7 @@ function segmentY(a, b, xVal) {
  */
 function segmentX(a, b, yVal) {
     let gradient = 0
-    if (b.y - a.y == 0) {
+    if (b.x - a.x == 0) {
         gradient = Number.EPSILON
     }
     else {
