@@ -52,7 +52,7 @@
  * @param {number} xPos
  * @returns {number}
  */
-function  parabolaPointY(focus, directrix, xPos) {
+function parabolaPointY(focus, directrix, xPos) {
     // transform all coordinates such that the focus is the origin
     // this allows for a much simpler equation and the result can be transformed back
     directrix -= focus.y
@@ -99,6 +99,80 @@ function circle(a, b, c) {
     const yVal = (xVal - mabx) * igab + maby
     const radius = Math.sqrt((a.x - xVal) * (a.x - xVal) + (a.y - yVal) * (a.y - yVal))
     return { centre: { x: xVal, y: yVal }, radius: radius }
+}
+
+/**
+ * @param {Coordinate} a
+ * @param {Coordinate} b
+ * @param {number} xVal
+ * @returns {number}
+ */
+function segmentY(a, b, xVal) {
+    let gradient = 0
+    if (b.y - a.y == 0) {
+        gradient = Number.EPSILON
+    }
+    else {
+        gradient = (b.y - a.y) / (b.x - a.x)
+    }
+
+    return (xVal - a.x) * gradient + a.y
+}
+
+/**
+ * @param {Coordinate} a
+ * @param {Coordinate} b
+ * @param {number} yVal
+ * @returns {number}
+ */
+function segmentX(a, b, yVal) {
+    let gradient = 0
+    if (b.y - a.y == 0) {
+        gradient = Number.EPSILON
+    }
+    else {
+        gradient = (b.y - a.y) / (b.x - a.x)
+    }
+
+    return (yVal - a.y) / gradient + a.x
+}
+
+/**
+ * @param {Coordinate} vertex
+ * @param {Coordinate} a
+ * @param {Coordinate} b
+ * @returns {Coordinate}
+ */
+function boundingCoordinate(vertex, a, b) {
+    /**@type {Coordinate} */
+    const vertexSpaceA = { x: a.x - vertex.x, y: a.y - vertex.y }
+    /**@type {Coordinate} */
+    const vertexSpaceB = { x: b.x - vertex.x, y: b.y - vertex.y }
+    /**@type {Coordinate} */
+    const midpoint = {
+        x: (vertexSpaceA.x + vertexSpaceB.x) / 2,
+        y: (vertexSpaceA.y + vertexSpaceB.y) / 2
+    }
+    if (midpoint.y > midpoint.x) {
+        // Positive Y
+        if (midpoint.y > -midpoint.x) {
+            return { x: segmentX(a, b, 10), y: 10 }
+        }
+        // Positive X
+        else {
+            return { x: 10, y: segmentY(a, b, 10) }
+        }
+    }
+    else {
+        // Negative X
+        if (midpoint.y > -midpoint.x) {
+            return { x: -10, y: segmentY(a, b, -10) }
+        }
+        // Negative Y
+        else {
+            return { x: segmentX(a, b, -10), y: -10 }
+        }
+    }
 }
 
 /**
@@ -254,6 +328,8 @@ VoronoiDiagram.prototype.compute =  function(sites) {
         
         // logBeachLine(this.activeSites[0].arcs[0])
     }
+
+    this.completeUnboundEdges()
 }
 
 /**
@@ -414,6 +490,7 @@ VoronoiDiagram.prototype.updateEdges = function(vertex, siteA, siteB, siteC) {
     // console.log(leftSite.site)
     // console.log(middleSite.site)
     // console.log(rightSite.site)
+    this.updateEdge(vertex, leftSite, rightSite)
     this.updateEdge(vertex, leftSite, middleSite)
     this.updateEdge(vertex, middleSite, rightSite)
 }
@@ -444,6 +521,14 @@ VoronoiDiagram.prototype.updateEdge = function(vertex, leftSite, rightSite) {
     else {
         this.edges.push({ leftFace: leftSite.site, rightFace: rightSite.site, firstVertex: vertex, lastVertex: null })
     }
+}
+
+VoronoiDiagram.prototype.completeUnboundEdges = function() {
+    this.edges
+        .filter(function(element) { return element.lastVertex == null })
+        .forEach(function(element) {
+            element.lastVertex = boundingCoordinate(element.firstVertex, element.leftFace, element.rightFace)
+        })
 }
 
 /**
