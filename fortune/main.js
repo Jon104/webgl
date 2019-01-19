@@ -430,11 +430,11 @@ VoronoiDiagram.prototype.updateBeachLine = function(newArc, intersectedArc) {
     if (intersectedArcLeftArc != null) {
         intersectedArcLeftArc.rightArc = newArc.leftArc
     }
-
+    
     if (intersectedArcRightArc != null) {
         intersectedArcRightArc.leftArc = newArc.rightArc
     }
-
+    
     this.updateVertexEvents(newArc)
     this.edges.push({
         leftFace: newArc.activeSite.site,
@@ -461,11 +461,17 @@ VoronoiDiagram.prototype.updateVertexEvents = function(arc) {
     /**@type {VertexEvent[]} */
     const vertexEvents = []
     if (arc.leftArc.leftArc != null) {
-        vertexEvents.push(this.getVertexEvent(arc.leftArc))
+        const event = this.getVertexEvent(arc.leftArc)
+        if (event != null) {
+            vertexEvents.push(event)
+        }
     }
 
     if (arc.rightArc.rightArc != null) {
-        vertexEvents.push(this.getVertexEvent(arc.rightArc))
+        const event = this.getVertexEvent(arc.rightArc)
+        if (event != null) {
+            vertexEvents.push(event)
+        }
     }
 
     this.queue.pushVertexEvents(vertexEvents)
@@ -476,11 +482,15 @@ VoronoiDiagram.prototype.updateVertexEvents = function(arc) {
  * @returns {VertexEvent}
  */
 VoronoiDiagram.prototype.getVertexEvent = function(arc) {
-    const circleResult = circle(
-        arc.leftArc.activeSite.site,
-        arc.activeSite.site,
-        arc.rightArc.activeSite.site
-    )
+    const leftSite = arc.leftArc.activeSite.site
+    const middleSite = arc.activeSite.site
+    const rightSite = arc.rightArc.activeSite.site
+    const circleResult = circle(leftSite, middleSite, rightSite)
+    const x = circleResult.centre.x
+    if ((x < leftSite.x && x < middleSite.x && x < rightSite.x) || (x > leftSite.x && x > middleSite.x && x > rightSite.x)) {
+        return null
+    }
+
     /**@type {Coordinate} */
     const eventPoint = { x: circleResult.centre.x, y: circleResult.centre.y + circleResult.radius }
     return {
@@ -631,7 +641,7 @@ function drawDiagramToCanvas(diagram) {
         if (element.lastVertex != null) {
             drawLine(canvas, element.firstVertex, element.lastVertex)
         }
-        else {
+        else if (element.firstVertex != null) {
             drawPoint(canvas, element.firstVertex, false)
         }
         drawPoint(canvas, element.leftFace, true)
@@ -710,12 +720,15 @@ function logAllArcs() {
 
 // logEdges(diagram)
 
-for (var i = 0; i < 10; i++) {
+while (!diagram.queue.isEmpty()) {
     diagram.computeStep()
     // console.log(diagram.lineSweepPosition)
     // logBeachLine(diagram.activeSites[0].arcs[0])
     // logAllArcs()
 }
 
+// diagram.compute()
+
+logEdges(diagram)
 // drawBeachLine(diagram)
 // drawDiagramToCanvas(diagram)
