@@ -195,17 +195,6 @@ function bisectorY(a, b, xVal) {
     return (xVal - midX) * inverseGrad + midY
 }
 
-/**
- * @param {Coordinate[]} acc
- * @param {Edge} element
- * @returns {Coordinate[]}
- */
-function flattenEdges(acc, element) {
-    acc.push(element.firstVertex)
-    acc.push(element.lastVertex)
-    return acc
-}
-
 function PriorityQueue() {
     /**@type {SiteEvent[]} */
     this.siteEvents = []
@@ -399,6 +388,8 @@ VoronoiDiagram.prototype.insertSite = function(site) {
         // of the parabola, with its right neighbour being the parabola that this parabola subdivides
         // or null if this is the last parabola on the beachline
         if (containingArc == null) {
+            console.log(closestParabolaSite.site)
+            console.log(closestParabolaSite.arcs.length)
             containingArc = closestParabolaSite.arcs[closestParabolaSite.arcs.length - 1]
         }
     }
@@ -507,6 +498,12 @@ VoronoiDiagram.prototype.processVertexEvent = function(vertexEvent) {
     deletedArc.activeSite.arcs = deletedArc.activeSite.arcs.filter(function(arc) { return arc != deletedArc })
     vertexEvent.arcs[0].rightArc = vertexEvent.arcs[2]
     vertexEvent.arcs[2].leftArc = vertexEvent.arcs[0]
+    this.edges.push({
+        leftFace: vertexEvent.arcs[0].activeSite.site,
+        rightFace: vertexEvent.arcs[2].activeSite.site,
+        firstVertex: null,
+        lastVertex: null
+    })
     this.updateEdge(
         vertexEvent.arcs[0].activeSite.site,
         vertexEvent.arcs[1].activeSite.site,
@@ -619,7 +616,7 @@ function drawBeachLine(diagram) {
         const x = correctedSite.x
         const y = correctedSite.y
         canvas.beginPath()
-        canvas.arc(x, y, radius, 0, Math.PI * 2)
+        canvas.arc(x, y, radius / 2, 0, Math.PI * 2)
         canvas.stroke()
         currentArc = currentArc.rightArc
     }
@@ -711,12 +708,14 @@ function logAllArcs() {
     console.log('-')
 }
 
-logAllArcs()
-
-for (var i = 0; i < 6; i++) {
-    diagram.computeStep()
-    logAllArcs()
-    // logBeachLine(diagram.activeSites[0].arcs[0])
-    // reverseLogBeachLine(diagram.activeSites[0].arcs[0])
-}
 // logEdges(diagram)
+
+for (var i = 0; i < 10; i++) {
+    diagram.computeStep()
+    // console.log(diagram.lineSweepPosition)
+    // logBeachLine(diagram.activeSites[0].arcs[0])
+    // logAllArcs()
+}
+
+// drawBeachLine(diagram)
+// drawDiagramToCanvas(diagram)
