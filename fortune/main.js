@@ -157,6 +157,30 @@ function segmentX(a, b, yVal) {
 }
 
 /**
+ * @param {Coordinate} vector
+ * @returns {Coordinate}
+ */
+function getNormal(vector) {
+    const divisor = Math.sqrt(vector.x * vector.x + vector.y * vector.y)
+    const unitVector = { x: vector.x / divisor, y: vector.y / divisor }
+    return { x: unitVector.y, y: -unitVector.x }
+}
+
+/**
+ * @param {Coordinate} a
+ * @param {Coordinate} b
+ * @param {Coordinate} point
+ * @returns {number}
+ */
+function distanceFromPlane(a, b, point) {
+    /**@type {Coordinate} */
+    const normal = getNormal({ x: b.x - a.x, y: b.y - a.y })
+    /**@type {Coordinate} */
+    const transformedPoint = { x: point.x - a.x, y: point.y - a.y }
+    return normal.x * transformedPoint.x + normal.y * transformedPoint.y
+}
+
+/**
  * @param {Coordinate} vertex
  * @param {Coordinate} a
  * @param {Coordinate} b
@@ -545,10 +569,6 @@ VoronoiDiagram.prototype.getVertexEvent = function(arc) {
         return null
     }
 
-    if (circleResult.centre.x < leftSite.x || circleResult.centre.x > rightSite.x) {
-        return null
-    }
-
     const eventY = circleResult.centre.y + circleResult.radius
     if (eventY < this.lineSweepPosition) {
         return null
@@ -764,7 +784,18 @@ for (var i = 0; i < 10; i++) {
     sites.push({ x: Math.floor(Math.random() * 20), y: Math.floor(Math.random() * 20) })
 }
 
-const diagram = new VoronoiDiagram(sites)
+const diagram = new VoronoiDiagram([
+    {x: 18, y: 12}
+,{x: 13, y: 6}
+,{x: 12, y: 10}
+,{x: 0, y: 19}
+,{x: 5, y: 12}
+,{x: 13, y: 13}
+,{x: 18.05, y: 14}
+,{x: 9, y: 10}
+,{x: 18, y: 15}
+,{x: 18, y: 19}
+])
 logBeachLine(diagram.activeSites[0].arcs[0])
 
 function logAllArcs() {
@@ -810,4 +841,4 @@ while (!diagram.queue.isEmpty()) {
 logEdges(diagram)
 console.log(sites)
 // drawBeachLine(diagram)
-drawDiagramToCanvas(diagram)
+// drawDiagramToCanvas(diagram)
