@@ -545,6 +545,10 @@ VoronoiDiagram.prototype.getVertexEvent = function(arc) {
         return null
     }
 
+    if (circleResult.centre.x < leftSite.x || circleResult.centre.x > rightSite.x) {
+        return null
+    }
+
     const eventY = circleResult.centre.y + circleResult.radius
     if (eventY < this.lineSweepPosition) {
         return null
@@ -760,18 +764,7 @@ for (var i = 0; i < 10; i++) {
     sites.push({ x: Math.floor(Math.random() * 20), y: Math.floor(Math.random() * 20) })
 }
 
-const diagram = new VoronoiDiagram([
-    {x: 8, y: 9},
-    {x: 2, y: 11},
-    {x: 11, y: 19},
-    {x: 5, y: 4},
-    {x: 8, y: 10},
-    {x: 10, y: 1},
-    {x: 18, y: 1},
-    {x: 18, y: 7},
-    {x: 17, y: 15},
-    {x: 17, y: 15},
-])
+const diagram = new VoronoiDiagram(sites)
 logBeachLine(diagram.activeSites[0].arcs[0])
 
 function logAllArcs() {
