@@ -506,6 +506,7 @@ VoronoiDiagram.prototype.updateVertexEventsForNewSite = function(arc) {
 /**
  * @param {ParabolaArc} leftArc
  * @param {ParabolaArc} rightArc
+ * Possibly not needed
  */
 VoronoiDiagram.prototype.updateVertexEventsForConnectedSites = function(leftArc, rightArc) {
     /**@type {VertexEvent[]} */
@@ -539,12 +540,7 @@ VoronoiDiagram.prototype.getVertexEvent = function(arc) {
 
     const circleResult = circle(leftSite, middleSite, rightSite)
     const eventY = circleResult.centre.y + circleResult.radius
-    if (leftSite.x == 5 && leftSite.y == 2 && middleSite.x == 8 && middleSite.y == 4 && rightSite.x == 7 && rightSite.y == 1) {
-        console.log('possible counting error')
-        console.log(eventY)
-        console.log()
-    }
-    if (eventY <= this.lineSweepPosition) {
+    if (eventY < this.lineSweepPosition) {
         return null
     }
 
@@ -568,7 +564,7 @@ VoronoiDiagram.prototype.processVertexEvent = function(vertexEvent) {
     leftSite.rightArc = vertexEvent.arcs[2]
     rightSite.leftArc = vertexEvent.arcs[0]
     this.removeArcTriples(deletedArc)
-    this.updateVertexEventsForConnectedSites(leftSite, rightSite)
+    // this.updateVertexEventsForConnectedSites(leftSite, rightSite)
     this.edges.push({
         leftFace: leftSite.activeSite.site,
         rightFace: rightSite.activeSite.site,
@@ -754,8 +750,8 @@ function correctedCoordinate(coord) {
 
 
 const diagram = new VoronoiDiagram([
-    /*{ x:  1, y:  0 },
-    { x: 10, y:  0 },
+    /*{ x:  1, y:  1 },
+    { x: 10, y:  1 },
     { x:  1, y: 10 },
     { x: 10, y: 10 },*/
 
