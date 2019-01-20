@@ -74,20 +74,34 @@ function circle(a, b, c) {
     let igab = 0
     let igbc = 0
     if (b.y - a.y == 0) {
-        igab = (a.x - b.x) / Number.EPSILON
+        igab = Infinity
     }
     else {
         igab = (a.x - b.x) / (b.y - a.y)
     }
+
     if (c.y - b.y == 0) {
-        igbc = (b.x - c.x) / Number.EPSILON
+        igbc = Infinity
     }
     else {
         igbc = (b.x - c.x) / (c.y - b.y)
     }
-    const xVal = (mabx * igab - mbcx * igbc + mbcy - maby) /
-        (igab - igbc)
-    const yVal = (xVal - mabx) * igab + maby
+
+    let xVal = 0
+    let yVal = 0
+    if (igab == Infinity) {
+        xVal = mabx
+        yVal = (xVal - mbcx) * igbc + mbcy
+    }
+    else if (igbc == Infinity) {
+        xVal = mbcx
+        yVal = (xVal - mabx) * igab + maby
+    }
+    else {
+        xVal = (mabx * igab - mbcx * igbc + mbcy - maby) /
+            (igab - igbc)
+        yVal = (xVal - mabx) * igab + maby
+    }
     const radius = Math.sqrt((a.x - xVal) * (a.x - xVal) + (a.y - yVal) * (a.y - yVal))
     return { centre: { x: xVal, y: yVal }, radius: radius }
 }
@@ -476,18 +490,21 @@ VoronoiDiagram.prototype.getVertexEvent = function(arc) {
     const leftSite = arc.leftArc.activeSite.site
     const middleSite = arc.activeSite.site
     const rightSite = arc.rightArc.activeSite.site
-    if (leftSite.x > rightSite.x) {
+    if (leftSite == middleSite || middleSite == rightSite || leftSite == rightSite) {
         return null
     }
 
     const circleResult = circle(leftSite, middleSite, rightSite)
     const x = circleResult.centre.x
-    if ((x < leftSite.x && x < middleSite.x && x < rightSite.x) || (x > leftSite.x && x > middleSite.x && x > rightSite.x)) {
+    const eventY = circleResult.centre.y + circleResult.radius
+    if (eventY < this.lineSweepPosition ||
+        (x < leftSite.x && x < middleSite.x && x < rightSite.x) ||
+        (x > leftSite.x && x > middleSite.x && x > rightSite.x)) {
         return null
     }
 
     /**@type {Coordinate} */
-    const eventPoint = { x: circleResult.centre.x, y: circleResult.centre.y + circleResult.radius }
+    const eventPoint = { x: circleResult.centre.x, y: eventY }
     return {
         arcs: [arc.leftArc, arc, arc.rightArc],
         eventPoint: eventPoint,
