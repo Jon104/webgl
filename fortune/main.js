@@ -98,6 +98,23 @@ function circle(a, b, c) {
         (2 * igab - igbc - igca)
     const yVal = (xVal - mabx) * igab + maby
     const radius = Math.sqrt((a.x - xVal) * (a.x - xVal) + (a.y - yVal) * (a.y - yVal))
+    if (isNaN(xVal) || isNaN(yVal)) {
+        console.log('circle error')
+        console.log(a)
+        console.log(b)
+        console.log(c)
+        console.log(mabx)
+        console.log(maby)
+        console.log(mbcx)
+        console.log(mbcy)
+        console.log(macx)
+        console.log(macy)
+        console.log(igab)
+        console.log(igbc)
+        console.log(igca)
+        console.log()
+    }
+
     return { centre: { x: xVal, y: yVal }, radius: radius }
 }
 
@@ -461,20 +478,20 @@ VoronoiDiagram.prototype.updateVertexEvents = function(arc) {
     /**@type {VertexEvent[]} */
     const vertexEvents = []
     if (arc.leftArc.leftArc != null) {
-        const event = this.getVertexEvent(arc.leftArc)
-        if (event != null) {
-            vertexEvents.push(event)
+        vertexEvents.push(this.getVertexEvent(arc.leftArc))
+        if (arc.leftArc.leftArc.leftArc != null) {
+            vertexEvents.push(this.getVertexEvent(arc.leftArc.leftArc))
         }
     }
 
     if (arc.rightArc.rightArc != null) {
-        const event = this.getVertexEvent(arc.rightArc)
-        if (event != null) {
-            vertexEvents.push(event)
+        vertexEvents.push(this.getVertexEvent(arc.rightArc))
+        if (arc.rightArc.rightArc.rightArc != null) {
+            vertexEvents.push(this.getVertexEvent(arc.rightArc.rightArc))
         }
     }
 
-    this.queue.pushVertexEvents(vertexEvents)
+    this.queue.pushVertexEvents(vertexEvents.filter(function(element) { return element != null }))
 }
 
 /**
@@ -485,6 +502,10 @@ VoronoiDiagram.prototype.getVertexEvent = function(arc) {
     const leftSite = arc.leftArc.activeSite.site
     const middleSite = arc.activeSite.site
     const rightSite = arc.rightArc.activeSite.site
+    if (leftSite.x > middleSite.x || middleSite.x > rightSite.x) {
+        return null
+    }
+
     const circleResult = circle(leftSite, middleSite, rightSite)
     const x = circleResult.centre.x
     if ((x < leftSite.x && x < middleSite.x && x < rightSite.x) || (x > leftSite.x && x > middleSite.x && x > rightSite.x)) {
@@ -511,7 +532,7 @@ VoronoiDiagram.prototype.processVertexEvent = function(vertexEvent) {
     this.edges.push({
         leftFace: vertexEvent.arcs[0].activeSite.site,
         rightFace: vertexEvent.arcs[2].activeSite.site,
-        firstVertex: null,
+        firstVertex: vertexEvent.vertexPoint,
         lastVertex: null
     })
     this.updateEdge(
