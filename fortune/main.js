@@ -393,8 +393,6 @@ VoronoiDiagram.prototype.insertSite = function(site) {
         // of the parabola, with its right neighbour being the parabola that this parabola subdivides
         // or null if this is the last parabola on the beachline
         if (containingArc == null) {
-            console.log(closestParabolaSite.site)
-            console.log(closestParabolaSite.arcs.length)
             containingArc = closestParabolaSite.arcs[closestParabolaSite.arcs.length - 1]
         }
     }
@@ -494,12 +492,13 @@ VoronoiDiagram.prototype.getVertexEvent = function(arc) {
         return null
     }
 
+    if (leftSite.x > rightSite.x) {
+        return null
+    }
+
     const circleResult = circle(leftSite, middleSite, rightSite)
-    const x = circleResult.centre.x
     const eventY = circleResult.centre.y + circleResult.radius
-    if (eventY < this.lineSweepPosition ||
-        (x < leftSite.x && x < middleSite.x && x < rightSite.x) ||
-        (x > leftSite.x && x > middleSite.x && x > rightSite.x)) {
+    if (eventY < this.lineSweepPosition) {
         return null
     }
 
@@ -705,6 +704,11 @@ function correctedCoordinate(coord) {
 
 
 const diagram = new VoronoiDiagram([
+    { x:  1, y:  0 },
+    { x: 10, y:  0 },
+    { x:  1, y: 10 },
+    { x: 10, y: 10 },
+
     { x: 2, y: 9 },
     { x: 3, y: 7 },
     { x: 3, y: 2 },
@@ -717,7 +721,6 @@ const diagram = new VoronoiDiagram([
 ])
 
 function logAllArcs() {
-    console.log('-')
     for (let i = 0; i < diagram.activeSites.length; i++) {
         console.log()
         console.log(diagram.activeSites[i].site)
@@ -727,7 +730,6 @@ function logAllArcs() {
             reverseLogBeachLine(diagram.activeSites[i].arcs[j])
         }
     }
-    console.log('-')
 }
 
 // logEdges(diagram)
