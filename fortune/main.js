@@ -67,6 +67,20 @@ function parabolaPointY(focus, directrix, xPos) {
  * @returns {CircleResult}
  */
 function circle(a, b, c) {
+    // Coordinates need to be computed in a deterministic order because otherwise
+    // counting errors can cause a different result to be output for the same inputs
+    const sortedList = [a, b, c].sort(function(a, b) {
+        if (a.y == b.y) {
+            return a.x - b.x
+        }
+        else {
+            return a.y - b.y
+        }
+    })
+    a = sortedList[0]
+    b = sortedList[1]
+    c = sortedList[2]
+
     const mabx = (a.x + b.x) / 2
     const maby = (a.y + b.y) / 2
     const mbcx = (b.x + c.x) / 2
@@ -258,11 +272,8 @@ PriorityQueue.prototype.sortVertices = function() {
         if (a.eventPoint.y == b.eventPoint.y) {
             return b.eventPoint.x - a.eventPoint.x
         }
-        else if (a.eventPoint.y > b.eventPoint.y) {
-            return -1
-        }
         else {
-            return 1
+            b.eventPoint.y - a.eventPoint.y
         }
     })
 }
@@ -318,11 +329,18 @@ VoronoiDiagram.prototype.computeStep = function() {
     const nextEvent = this.queue.pop()
     if (nextEvent.isSiteEvent) {
         console.log('Site event')
+        console.log(nextEvent.siteEvent.point)
+        console.log(nextEvent.siteEvent.point.y)
+        console.log()
         this.lineSweepPosition = nextEvent.siteEvent.point.y
         this.insertSite(nextEvent.siteEvent.point)
     }
     else {
         console.log('Vertex event')
+        console.log(nextEvent.vertexEvent.vertexPoint)
+        console.log(nextEvent.vertexEvent.arcs[1].activeSite.site)
+        console.log(nextEvent.vertexEvent.eventPoint.y)
+        console.log()
         this.lineSweepPosition = nextEvent.vertexEvent.eventPoint.y
         this.processVertexEvent(nextEvent.vertexEvent)
     }
@@ -394,6 +412,11 @@ VoronoiDiagram.prototype.insertSite = function(site) {
         // or null if this is the last parabola on the beachline
         if (containingArc == null) {
             containingArc = closestParabolaSite.arcs[closestParabolaSite.arcs.length - 1]
+            if (closestParabolaSite.arcs.length == 0) {
+                console.log('parabola site')
+                console.log(closestParabolaSite.site)
+                console.log()
+            }
         }
     }
 
@@ -424,7 +447,6 @@ VoronoiDiagram.prototype.updateBeachLine = function(newArc, intersectedArc) {
     intersectedArc.activeSite.arcs = intersectedArc.activeSite.arcs.filter(function(element) { return element != intersectedArc })
     const intersectedArcLeftArc = intersectedArc.leftArc
     const intersectedArcRightArc = intersectedArc.rightArc
-    this.removeArcTriples(intersectedArc)
     // Create a triple of the new arc and the divided intercepted arc
     newArc.leftArc = { activeSite: intersectedArc.activeSite, leftArc: intersectedArcLeftArc, rightArc: newArc }
     newArc.rightArc = { activeSite: intersectedArc.activeSite, leftArc: newArc, rightArc: intersectedArcRightArc }
@@ -438,7 +460,8 @@ VoronoiDiagram.prototype.updateBeachLine = function(newArc, intersectedArc) {
         intersectedArcRightArc.leftArc = newArc.rightArc
     }
     
-    this.updateVertexEvents(newArc)
+    this.removeArcTriples(intersectedArc)
+    this.updateVertexEventsForNewSite(newArc)
     this.edges.push({
         leftFace: newArc.activeSite.site,
         rightFace: intersectedArc.activeSite.site,
@@ -460,7 +483,7 @@ VoronoiDiagram.prototype.removeArcTriples = function(arc) {
 /**
  * @param {ParabolaArc} arc
  */
-VoronoiDiagram.prototype.updateVertexEvents = function(arc) {
+VoronoiDiagram.prototype.updateVertexEventsForNewSite = function(arc) {
     /**@type {VertexEvent[]} */
     const vertexEvents = []
     if (arc.leftArc.leftArc != null) {
@@ -475,6 +498,24 @@ VoronoiDiagram.prototype.updateVertexEvents = function(arc) {
         if (arc.rightArc.rightArc.rightArc != null) {
             vertexEvents.push(this.getVertexEvent(arc.rightArc.rightArc))
         }
+    }
+
+    this.queue.pushVertexEvents(vertexEvents.filter(function(element) { return element != null }))
+}
+
+/**
+ * @param {ParabolaArc} leftArc
+ * @param {ParabolaArc} rightArc
+ */
+VoronoiDiagram.prototype.updateVertexEventsForConnectedSites = function(leftArc, rightArc) {
+    /**@type {VertexEvent[]} */
+    const vertexEvents = []
+    if (leftArc.leftArc != null) {
+        vertexEvents.push(this.getVertexEvent(leftArc))
+    }
+
+    if (rightArc.rightArc != null) {
+        vertexEvents.push(this.getVertexEvent(rightArc))
     }
 
     this.queue.pushVertexEvents(vertexEvents.filter(function(element) { return element != null }))
@@ -498,7 +539,12 @@ VoronoiDiagram.prototype.getVertexEvent = function(arc) {
 
     const circleResult = circle(leftSite, middleSite, rightSite)
     const eventY = circleResult.centre.y + circleResult.radius
-    if (eventY < this.lineSweepPosition) {
+    if (leftSite.x == 5 && leftSite.y == 2 && middleSite.x == 8 && middleSite.y == 4 && rightSite.x == 7 && rightSite.y == 1) {
+        console.log('possible counting error')
+        console.log(eventY)
+        console.log()
+    }
+    if (eventY <= this.lineSweepPosition) {
         return null
     }
 
@@ -517,22 +563,26 @@ VoronoiDiagram.prototype.getVertexEvent = function(arc) {
 VoronoiDiagram.prototype.processVertexEvent = function(vertexEvent) {
     const deletedArc = vertexEvent.arcs[1]
     deletedArc.activeSite.arcs = deletedArc.activeSite.arcs.filter(function(arc) { return arc != deletedArc })
-    vertexEvent.arcs[0].rightArc = vertexEvent.arcs[2]
-    vertexEvent.arcs[2].leftArc = vertexEvent.arcs[0]
+    const leftSite = vertexEvent.arcs[0]
+    const rightSite = vertexEvent.arcs[2]
+    leftSite.rightArc = vertexEvent.arcs[2]
+    rightSite.leftArc = vertexEvent.arcs[0]
+    this.removeArcTriples(deletedArc)
+    this.updateVertexEventsForConnectedSites(leftSite, rightSite)
     this.edges.push({
-        leftFace: vertexEvent.arcs[0].activeSite.site,
-        rightFace: vertexEvent.arcs[2].activeSite.site,
+        leftFace: leftSite.activeSite.site,
+        rightFace: rightSite.activeSite.site,
         firstVertex: vertexEvent.vertexPoint,
         lastVertex: null
     })
     this.updateEdge(
-        vertexEvent.arcs[0].activeSite.site,
-        vertexEvent.arcs[1].activeSite.site,
+        leftSite.activeSite.site,
+        deletedArc.activeSite.site,
         vertexEvent.vertexPoint
     )
     this.updateEdge(
-        vertexEvent.arcs[1].activeSite.site,
-        vertexEvent.arcs[2].activeSite.site,
+        deletedArc.activeSite.site,
+        rightSite.activeSite.site,
         vertexEvent.vertexPoint
     )
 }
@@ -704,10 +754,10 @@ function correctedCoordinate(coord) {
 
 
 const diagram = new VoronoiDiagram([
-    { x:  1, y:  0 },
+    /*{ x:  1, y:  0 },
     { x: 10, y:  0 },
     { x:  1, y: 10 },
-    { x: 10, y: 10 },
+    { x: 10, y: 10 },*/
 
     { x: 2, y: 9 },
     { x: 3, y: 7 },
@@ -732,12 +782,26 @@ function logAllArcs() {
     }
 }
 
+/**
+ * @param {VoronoiDiagram} diagram
+ */
+function logVertexEvents(diagram) {
+    console.log('vertex triples')
+    diagram.queue.vertexEvents.forEach(function(element) {
+        console.log(element.arcs[0].activeSite.site)
+        console.log(element.arcs[1].activeSite.site)
+        console.log(element.arcs[2].activeSite.site)
+        console.log()
+    })
+}
+
 // logEdges(diagram)
 
 while (!diagram.queue.isEmpty()) {
     diagram.computeStep()
     // console.log(diagram.lineSweepPosition)
-    // logBeachLine(diagram.activeSites[0].arcs[0])
+    logBeachLine(diagram.activeSites[0].arcs[0])
+    logVertexEvents(diagram)
     // logAllArcs()
 }
 
@@ -745,4 +809,4 @@ while (!diagram.queue.isEmpty()) {
 
 logEdges(diagram)
 // drawBeachLine(diagram)
-// drawDiagramToCanvas(diagram)
+drawDiagramToCanvas(diagram)
