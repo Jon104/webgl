@@ -71,11 +71,8 @@ function circle(a, b, c) {
     const maby = (a.y + b.y) / 2
     const mbcx = (b.x + c.x) / 2
     const mbcy = (b.y + c.y) / 2
-    const macx = (a.x + c.x) / 2
-    const macy = (a.y + c.y) / 2
     let igab = 0
     let igbc = 0
-    let igca = 0
     if (b.y - a.y == 0) {
         igab = (a.x - b.x) / Number.EPSILON
     }
@@ -88,33 +85,10 @@ function circle(a, b, c) {
     else {
         igbc = (b.x - c.x) / (c.y - b.y)
     }
-    if (a.y - c.y == 0) {
-        igca = (c.x - a.x) / Number.EPSILON
-    }
-    else {
-        igca = (c.x - a.x) / (a.y - c.y)
-    }
-    const xVal = (-mbcx * igbc + mbcy - macx * igca + macy + 2 * (mabx * igab - maby)) /
-        (2 * igab - igbc - igca)
+    const xVal = (mabx * igab - mbcx * igbc + mbcy - maby) /
+        (igab - igbc)
     const yVal = (xVal - mabx) * igab + maby
     const radius = Math.sqrt((a.x - xVal) * (a.x - xVal) + (a.y - yVal) * (a.y - yVal))
-    if (isNaN(xVal) || isNaN(yVal)) {
-        console.log('circle error')
-        console.log(a)
-        console.log(b)
-        console.log(c)
-        console.log(mabx)
-        console.log(maby)
-        console.log(mbcx)
-        console.log(mbcy)
-        console.log(macx)
-        console.log(macy)
-        console.log(igab)
-        console.log(igbc)
-        console.log(igca)
-        console.log()
-    }
-
     return { centre: { x: xVal, y: yVal }, radius: radius }
 }
 
@@ -502,7 +476,7 @@ VoronoiDiagram.prototype.getVertexEvent = function(arc) {
     const leftSite = arc.leftArc.activeSite.site
     const middleSite = arc.activeSite.site
     const rightSite = arc.rightArc.activeSite.site
-    if (leftSite.x > middleSite.x || middleSite.x > rightSite.x) {
+    if (leftSite.x > rightSite.x) {
         return null
     }
 
