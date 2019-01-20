@@ -486,14 +486,14 @@ VoronoiDiagram.prototype.updateBeachLine = function(newArc, intersectedArc) {
         intersectedArcRightArc.leftArc = newArc.rightArc
     }
     
-    this.removeArcTriples(intersectedArc)
-    this.updateVertexEventsForNewSite(newArc)
     this.edges.push({
         leftFace: newArc.activeSite.site,
         rightFace: intersectedArc.activeSite.site,
         firstVertex: null,
         lastVertex: null
     })
+    this.removeArcTriples(intersectedArc)
+    this.updateVertexEventsForNewSite(newArc)
 }
 
 /**
@@ -530,25 +530,6 @@ VoronoiDiagram.prototype.updateVertexEventsForNewSite = function(arc) {
 }
 
 /**
- * @param {ParabolaArc} leftArc
- * @param {ParabolaArc} rightArc
- * Possibly not needed
- */
-VoronoiDiagram.prototype.updateVertexEventsForConnectedSites = function(leftArc, rightArc) {
-    /**@type {VertexEvent[]} */
-    const vertexEvents = []
-    if (leftArc.leftArc != null) {
-        vertexEvents.push(this.getVertexEvent(leftArc))
-    }
-
-    if (rightArc.rightArc != null) {
-        vertexEvents.push(this.getVertexEvent(rightArc))
-    }
-
-    this.queue.pushVertexEvents(vertexEvents.filter(function(element) { return element != null }))
-}
-
-/**
  * @param {ParabolaArc} arc
  * @returns {VertexEvent}
  */
@@ -574,6 +555,11 @@ VoronoiDiagram.prototype.getVertexEvent = function(arc) {
         return null
     }
 
+    // if (!this.canAddVertexToEdge(leftSite, middleSite, circleResult.centre) ||
+    //     !this.canAddVertexToEdge(middleSite, rightSite, circleResult.centre)) {
+    //     return null
+    // }
+
     /**@type {Coordinate} */
     const eventPoint = { x: circleResult.centre.x, y: eventY }
     return {
@@ -594,13 +580,15 @@ VoronoiDiagram.prototype.processVertexEvent = function(vertexEvent) {
     leftSite.rightArc = vertexEvent.arcs[2]
     rightSite.leftArc = vertexEvent.arcs[0]
     this.removeArcTriples(deletedArc)
-    // this.updateVertexEventsForConnectedSites(leftSite, rightSite)
-    this.edges.push({
+    /**@type {Edge} */
+    const edge = { 
         leftFace: leftSite.activeSite.site,
         rightFace: rightSite.activeSite.site,
-        firstVertex: vertexEvent.vertexPoint,
+        firstVertex: null,
         lastVertex: null
-    })
+    }
+    this.addVertexToEdge(edge, vertexEvent.vertexPoint)
+    this.edges.push(edge)
     this.updateEdge(
         leftSite.activeSite.site,
         deletedArc.activeSite.site,
@@ -619,16 +607,59 @@ VoronoiDiagram.prototype.processVertexEvent = function(vertexEvent) {
  * @param {Coordinate} vertex
  */
 VoronoiDiagram.prototype.updateEdge = function(leftArc, rightArc, vertex) {
-    const edge = this.edges.find(function(element) {
-        return (element.leftFace == leftArc && element.rightFace == rightArc) ||
-        (element.leftFace == rightArc && element.rightFace == leftArc)
-    })
-    if (edge.firstVertex == null) {
+    const edge = this.getEdge(leftArc, rightArc)
+    this.addVertexToEdge(edge, vertex)
+}
+
+/**
+ * @param {Edge} edge
+ * @param {Coordinate} vertex
+ */
+VoronoiDiagram.prototype.addVertexToEdge = function(edge, vertex) {
+    if (distanceFromPlane(edge.leftFace, edge.rightFace, vertex) > 0) {
+        if (edge.firstVertex != null) {
+            console.log('vertex addition error')
+        }
         edge.firstVertex = vertex
     }
     else {
+        if (edge.lastVertex != null) {
+            console.log('vertex addition error')
+        }
         edge.lastVertex = vertex
     }
+}
+
+/**
+ * @param {Coordinate} leftFace
+ * @param {Coordinate} rightFace
+ * @param {Coordinate} vertex
+ * @returns {boolean}
+ */
+VoronoiDiagram.prototype.canAddVertexToEdge = function(leftFace, rightFace, vertex) {
+    const edge = this.getEdge(leftFace, rightFace)
+    if (!edge) {
+        return true
+    }
+
+    if (distanceFromPlane(edge.leftFace, edge.rightFace, vertex) > 0) {
+        return edge.firstVertex == null
+    }
+    else {
+        return edge.lastVertex == null
+    }
+}
+
+/**
+ * @param {Coordinate} a
+ * @param {Coordinate} b
+ * @returns {Edge}
+ */
+VoronoiDiagram.prototype.getEdge = function(a, b) {
+    return this.edges.find(function(element) {
+        return (element.leftFace == a && element.rightFace == b) ||
+        (element.leftFace == b && element.rightFace == a)
+    })
 }
 
 VoronoiDiagram.prototype.completeUnboundEdges = function() {
@@ -725,11 +756,14 @@ function drawBeachLine(diagram) {
 function drawDiagramToCanvas(diagram) {
     const canvas = getCanvas()
     diagram.edges.forEach(function(element) {
-        if (element.lastVertex != null) {
+        if (element.firstVertex != null && element.lastVertex != null) {
             drawLine(canvas, element.firstVertex, element.lastVertex)
         }
         else if (element.firstVertex != null) {
             drawPoint(canvas, element.firstVertex, false)
+        }
+        else if (element.lastVertex != null) {
+            drawPoint(canvas, element.lastVertex, false)
         }
         drawPoint(canvas, element.leftFace, true)
         drawPoint(canvas, element.rightFace, true)
@@ -841,4 +875,4 @@ while (!diagram.queue.isEmpty()) {
 logEdges(diagram)
 console.log(sites)
 // drawBeachLine(diagram)
-// drawDiagramToCanvas(diagram)
+drawDiagramToCanvas(diagram)
