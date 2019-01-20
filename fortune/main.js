@@ -181,44 +181,6 @@ function distanceFromPlane(a, b, point) {
 }
 
 /**
- * @param {Coordinate} vertex
- * @param {Coordinate} a
- * @param {Coordinate} b
- * @returns {Coordinate}
- */
-function boundingCoordinate(vertex, a, b) {
-    /**@type {Coordinate} */
-    const vertexSpaceA = { x: a.x - vertex.x, y: a.y - vertex.y }
-    /**@type {Coordinate} */
-    const vertexSpaceB = { x: b.x - vertex.x, y: b.y - vertex.y }
-    /**@type {Coordinate} */
-    const midpoint = {
-        x: (vertexSpaceA.x + vertexSpaceB.x) / 2,
-        y: (vertexSpaceA.y + vertexSpaceB.y) / 2
-    }
-    if (midpoint.y > midpoint.x) {
-        // Positive Y
-        if (midpoint.y > -midpoint.x) {
-            return { x: segmentX(a, b, 10), y: 10 }
-        }
-        // Positive X
-        else {
-            return { x: 10, y: segmentY(a, b, 10) }
-        }
-    }
-    else {
-        // Negative X
-        if (midpoint.y > -midpoint.x) {
-            return { x: 0, y: segmentY(a, b, 0) }
-        }
-        // Negative Y
-        else {
-            return { x: segmentX(a, b, 0), y: 0 }
-        }
-    }
-}
-
-/**
  * @param {Coordinate} a
  * @param {Coordinate} b
  * @param {number} xVal
@@ -663,6 +625,46 @@ VoronoiDiagram.prototype.getEdge = function(a, b) {
 }
 
 VoronoiDiagram.prototype.completeUnboundEdges = function() {
+    this.edges.forEach(function(edge) {
+        if (edge.firstVertex == null && edge.lastVertex == null) {
+            console.log('edge without vertex')
+            console.log(edge)
+            console.log()
+            return
+        }
+
+        const midpointX = (edge.leftFace.x + edge.rightFace.x) / 2
+        if (edge.firstVertex == null) {
+            const direction = midpointX - edge.lastVertex.x
+            if (direction > 0) {
+                edge.firstVertex = {
+                    x: 100,
+                    y: bisectorY(edge.leftFace, edge.rightFace, 100)
+                }
+            }
+            else {
+                edge.firstVertex = {
+                    x: -100,
+                    y: bisectorY(edge.leftFace, edge.rightFace, -100)
+                }
+            }
+        }
+        else if (edge.lastVertex == null) {
+            const direction = midpointX - edge.firstVertex.x
+            if (direction > 0) {
+                edge.lastVertex = {
+                    x: 100,
+                    y: bisectorY(edge.leftFace, edge.rightFace, 100)
+                }
+            }
+            else {
+                edge.lastVertex = {
+                    x: -100,
+                    y: bisectorY(edge.leftFace, edge.rightFace, -100)
+                }
+            }
+        }
+    })
 }
 
 /**
@@ -819,16 +821,10 @@ for (var i = 0; i < 10; i++) {
 }
 
 const diagram = new VoronoiDiagram([
-    {x: 18, y: 12}
-,{x: 13, y: 6}
-,{x: 12, y: 10}
-,{x: 0, y: 19}
-,{x: 5, y: 12}
-,{x: 13, y: 13}
-,{x: 18.05, y: 14}
-,{x: 9, y: 10}
-,{x: 18, y: 15}
-,{x: 18, y: 19}
+    { x: 3, y: 3 },
+    { x: 12, y: 3 },
+    { x: 8, y: 5 },
+    { x: 10, y: 5 }
 ])
 logBeachLine(diagram.activeSites[0].arcs[0])
 
@@ -870,6 +866,7 @@ while (!diagram.queue.isEmpty()) {
     // logAllArcs()
 }
 
+diagram.completeUnboundEdges()
 // diagram.compute()
 
 logEdges(diagram)
