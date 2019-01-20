@@ -273,7 +273,7 @@ PriorityQueue.prototype.sortVertices = function() {
             return b.eventPoint.x - a.eventPoint.x
         }
         else {
-            b.eventPoint.y - a.eventPoint.y
+            return b.eventPoint.y - a.eventPoint.y
         }
     })
 }
@@ -338,7 +338,9 @@ VoronoiDiagram.prototype.computeStep = function() {
     else {
         console.log('Vertex event')
         console.log(nextEvent.vertexEvent.vertexPoint)
+        console.log(nextEvent.vertexEvent.arcs[0].activeSite.site)
         console.log(nextEvent.vertexEvent.arcs[1].activeSite.site)
+        console.log(nextEvent.vertexEvent.arcs[2].activeSite.site)
         console.log(nextEvent.vertexEvent.eventPoint.y)
         console.log()
         this.lineSweepPosition = nextEvent.vertexEvent.eventPoint.y
@@ -539,6 +541,10 @@ VoronoiDiagram.prototype.getVertexEvent = function(arc) {
     }
 
     const circleResult = circle(leftSite, middleSite, rightSite)
+    if (circleResult.centre.x == Infinity || circleResult.centre.y == Infinity) {
+        return null
+    }
+
     const eventY = circleResult.centre.y + circleResult.radius
     if (eventY < this.lineSweepPosition) {
         return null
@@ -748,23 +754,25 @@ function correctedCoordinate(coord) {
     return { x: x, y: y }
 }
 
+/**@type {Coordinate[]} */
+const sites = []
+for (var i = 0; i < 10; i++) {
+    sites.push({ x: Math.floor(Math.random() * 20), y: Math.floor(Math.random() * 20) })
+}
 
 const diagram = new VoronoiDiagram([
-    /*{ x:  1, y:  1 },
-    { x: 10, y:  1 },
-    { x:  1, y: 10 },
-    { x: 10, y: 10 },*/
-
-    { x: 2, y: 9 },
-    { x: 3, y: 7 },
-    { x: 3, y: 2 },
-    { x: 5, y: 2 },
-    { x: 5, y: 5 },
-    { x: 6, y: 6 },
-    { x: 7, y: 1 },
-    { x: 8, y: 4 },
-    { x: 8, y: 8 }
+    {x: 8, y: 9},
+    {x: 2, y: 11},
+    {x: 11, y: 19},
+    {x: 5, y: 4},
+    {x: 8, y: 10},
+    {x: 10, y: 1},
+    {x: 18, y: 1},
+    {x: 18, y: 7},
+    {x: 17, y: 15},
+    {x: 17, y: 15},
 ])
+logBeachLine(diagram.activeSites[0].arcs[0])
 
 function logAllArcs() {
     for (let i = 0; i < diagram.activeSites.length; i++) {
@@ -788,6 +796,9 @@ function logVertexEvents(diagram) {
         console.log(element.arcs[1].activeSite.site)
         console.log(element.arcs[2].activeSite.site)
         console.log()
+        console.log(element.vertexPoint)
+        console.log(element.eventPoint)
+        console.log()
     })
 }
 
@@ -804,5 +815,6 @@ while (!diagram.queue.isEmpty()) {
 // diagram.compute()
 
 logEdges(diagram)
+console.log(sites)
 // drawBeachLine(diagram)
 drawDiagramToCanvas(diagram)
