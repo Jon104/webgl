@@ -205,6 +205,8 @@ function PriorityQueue() {
     this.siteEvents = []
     /**@type {VertexEvent[]} */
     this.vertexEvents = []
+    /**@type {VertexEvent[]} */
+    this.completedVertexEvents = []
 }
 
 /**
@@ -220,14 +222,37 @@ PriorityQueue.prototype.pushSiteEvents = function(values) {
  * @param {VertexEvent[]} values
  */
 PriorityQueue.prototype.pushVertexEvents = function(values) {
-    this.vertexEvents = this.vertexEvents.concat(values)
-    this.sortVertices()
+    const self = this
+    const validEvents = values
+        .filter(function(element) { return element != null && element != undefined })
+        .filter(function(element) { return !self.hasEventAlready(element) })
+    if (validEvents.length > 0) {
+        this.vertexEvents = this.vertexEvents.concat(validEvents)
+        this.sortVertices()
+    }
+}
+
+/**
+ * @param {VertexEvent} event
+ * @returns {boolean}
+ */
+PriorityQueue.prototype.hasEventAlready = function(event) {
+    const activeEvent = this.vertexEvents.find(function(element) { return element.vertexPoint.x == event.vertexPoint.x && element.vertexPoint.y == event.vertexPoint.y })
+    if (activeEvent == undefined) {
+        const endedEvent = this.completedVertexEvents.find(function(element) { return element.vertexPoint.x == event.vertexPoint.x && element.vertexPoint.y == event.vertexPoint.y })
+        if (endedEvent == undefined) {
+            return false
+        }
+    }
+    
+    return true
 }
 
 /**
  * @param {VertexEvent[]} values
  */
 PriorityQueue.prototype.removeVertexEvents = function(values) {
+    this.completedVertexEvents = this.completedVertexEvents.concat(values.filter(function(element) { return element != null && element != undefined }))
     this.vertexEvents = this.vertexEvents.filter(function(element) { return values.indexOf(element) == -1 })
     this.sortVertices()
 }
@@ -268,23 +293,31 @@ PriorityQueue.prototype.sortVertices = function() {
  * @returns {EventResult}
  */
 PriorityQueue.prototype.pop = function() {
+    /**@type {EventResult} */
+    let event = null
     if (this.vertexEvents.length == 0) {
-        return { isSiteEvent: true, siteEvent: this.siteEvents.pop(), vertexEvent: null }
+        event = { isSiteEvent: true, siteEvent: this.siteEvents.pop(), vertexEvent: null }
     }
-    if (this.siteEvents.length == 0) {
-        return { isSiteEvent: false, vertexEvent: this.vertexEvents.pop(), siteEvent: null }
-    }
-
-    const nextSiteEvent = this.siteEvents.pop()
-    const nextVertexEvent = this.vertexEvents.pop()
-    if (nextSiteEvent.point.y < nextVertexEvent.eventPoint.y) {
-        this.vertexEvents.push(nextVertexEvent)
-        return { isSiteEvent: true, siteEvent: nextSiteEvent, vertexEvent: null }
+    else if (this.siteEvents.length == 0) {
+        event = { isSiteEvent: false, vertexEvent: this.vertexEvents.pop(), siteEvent: null }
     }
     else {
-        this.siteEvents.push(nextSiteEvent)
-        return { isSiteEvent: false, vertexEvent: nextVertexEvent, siteEvent: null }
+        const nextSiteEvent = this.siteEvents.pop()
+        const nextVertexEvent = this.vertexEvents.pop()
+        if (nextSiteEvent.point.y < nextVertexEvent.eventPoint.y) {
+            this.vertexEvents.push(nextVertexEvent)
+            event = { isSiteEvent: true, siteEvent: nextSiteEvent, vertexEvent: null }
+        }
+        else {
+            this.siteEvents.push(nextSiteEvent)
+            event = { isSiteEvent: false, vertexEvent: nextVertexEvent, siteEvent: null }
+        }
     }
+
+    if (!event.isSiteEvent) {
+        this.completedVertexEvents.push(event.vertexEvent)
+    }
+    return event
 }
 
 
@@ -503,7 +536,14 @@ VoronoiDiagram.prototype.updateVertexEvents = function(intersectedArc, newArc) {
         this.getVertexEvent(newArc.leftArc),
         this.getVertexEvent(newArc.rightArc)
     ]
-    this.queue.pushVertexEvents(newEvents.filter(function(element) { return element != null }))
+
+    // If the intersected arc intersects a single other arc then the two vertex events are the same event
+    if (newEvents[0] != null && newEvents[1] != null && newEvents[0].arcs[0].activeSite == newEvents[1].arcs[2].activeSite) {
+        this.queue.pushVertexEvents([newEvents[0]])
+    }
+    else {
+        this.queue.pushVertexEvents(newEvents)
+    }
 }
 
 /**
@@ -524,7 +564,14 @@ VoronoiDiagram.prototype.updateVertexEventsAfterDeletedArc = function(leftArc, r
         this.getVertexEvent(leftArc),
         this.getVertexEvent(rightArc)
     ]
-    this.queue.pushVertexEvents(newEvents.filter(function(element) { return element != null }))
+
+    // If the intersected arc intersects a single other arc then the two vertex events are the same event
+    if (newEvents[0] != null && newEvents[1] != null && newEvents[0].arcs[0].activeSite == newEvents[1].arcs[2].activeSite) {
+        this.queue.pushVertexEvents([newEvents[0]])
+    }
+    else {
+        this.queue.pushVertexEvents(newEvents)
+    }
 }
 
 /**
@@ -701,6 +748,61 @@ VoronoiDiagram.prototype.completeUnboundEdges = function() {
                 }
             }
         }
+    })
+}
+
+/**
+ * @param {VoronoiDiagram} diagram
+ */
+function verifyBeachLineIntegrity(diagram) {
+    /**@type {Coordinate[]} */
+    const order = []
+
+    let currentArc = diagram.activeSites[0].arcs[0]
+    while (currentArc.leftArc != null) {
+        currentArc = currentArc.leftArc
+    }
+
+    while (currentArc != null) {
+        order.push(currentArc.activeSite.site)
+        currentArc = currentArc.rightArc
+    }
+
+    const reverseOrder = order.slice(0, order.length)
+    reverseOrder.reverse()
+
+    diagram.activeSites.forEach(function(site) {
+        site.arcs.forEach(function(arc) {
+            currentArc = arc
+            while(currentArc.leftArc != null) {
+                currentArc = currentArc.leftArc
+            }
+
+            let i = 0
+            while(currentArc != null) {
+                if (currentArc.activeSite.site.x != order[i].x || currentArc.activeSite.site.y != order[i].y) {
+                    console.log('ERROR: beachline inconsistent')
+                }
+
+                currentArc = currentArc.rightArc
+                i++
+            }
+
+            currentArc = arc
+            while(currentArc.rightArc != null) {
+                currentArc = currentArc.rightArc
+            }
+
+            i = 0
+            while(currentArc != null) {
+                if (currentArc.activeSite.site.x != reverseOrder[i].x || currentArc.activeSite.site.y != reverseOrder[i].y) {
+                    console.log('ERROR: beachline inconsistent')
+                }
+
+                currentArc = currentArc.leftArc
+                i++
+            }
+        })
     })
 }
 
@@ -929,19 +1031,21 @@ function logVertexEvents(diagram) {
 
 // logEdges(diagram)
 
-while (!diagram.queue.isEmpty()) {
-//for (var i = 0; i < 6; i++) {
+//while (!diagram.queue.isEmpty()) {
+for (var i = 0; i < 11; i++) {
     diagram.computeStep()
     // console.log(diagram.lineSweepPosition)
-    logBeachLine(diagram.activeSites[0].arcs[0])
-    logVertexEvents(diagram)
+    // logBeachLine(diagram.activeSites[0].arcs[0])
+    // logVertexEvents(diagram)
     // logAllArcs()
 }
+
+verifyBeachLineIntegrity(diagram)
 
 // diagram.completeUnboundEdges()
 // diagram.compute()
 
 logEdges(diagram)
 console.log(sites)
-// drawBeachLine(diagram)
+//drawBeachLine(diagram)
 drawDiagramToCanvas(diagram)
