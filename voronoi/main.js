@@ -1,6 +1,6 @@
 // @ts-check
 const circleSubdivisions = 64
-const cellCount = 9
+const cellCount = 4
 const movementChangeRate = 0.0000000001
 const maxVelocity = 0.0001
 
@@ -44,15 +44,10 @@ var lastTime = 0
  * @type {Coordinate[]}
  */
 const voronoiPoints = [
-    { x: -0.6, y: 0.8 },
-    { x: -0.4, y: 0.4 },
-    { x: -0.4, y: -0.6 },
-    { x: 0, y: -0.6 },
-    { x: 0, y: 0 },
-    { x: 0.2, y: 0.2 },
-    { x: 0.4, y: -0.8 },
-    { x: 0.6, y: -0.2 },
-    { x: 0.6, y: 0.6 }
+    { x:  0.0, y: -0.4 },
+    { x:  0.4, y: -0.4 },
+    { x:  0.8, y: -0.1 },
+    { x: -0.5, y: -0.5 }
 ]// generateVoronoiPoints()
 
 /**

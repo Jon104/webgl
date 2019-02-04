@@ -462,7 +462,6 @@ VoronoiDiagram.prototype.insertFirstSites = function() {
     const secondSite = this.queue.pop().siteEvent.point
     this.sites.push(firstSite)
     this.sites.push(secondSite)
-
     if (secondSite.y > firstSite.y) {
         const firstArc = this.beachLine.addInitialArc(firstSite)
         this.beachLine.addIntersectingArc(secondSite, firstArc)
@@ -586,7 +585,16 @@ VoronoiDiagram.prototype.updateVertexEvents = function(intersectedArc, newArc) {
 
     // If the intersected arc intersects a single other arc then the two vertex events are the same event
     if (newEvents[0] != null && newEvents[1] != null && newEvents[0].arcs[0].site == newEvents[1].arcs[2].site) {
-        this.queue.pushVertexEvents([newEvents[0]])
+        // In this case check what side of the new arc the vertex is on to determine which side of the intercepted arc will disappear with the event
+        const x = newEvents[0].vertexPoint.x
+        // Left
+        if (newArc.site.x > x) {
+            this.queue.pushVertexEvents([newEvents[0]])
+        }
+        // Right
+        else {
+            this.queue.pushVertexEvents([newEvents[1]])
+        }
     }
     else {
         this.queue.pushVertexEvents(newEvents)
@@ -654,11 +662,6 @@ VoronoiDiagram.prototype.getVertexEvent = function(arc) {
         return null
     }
 
-    // This is largely a guess
-    if (leftSite.x > rightSite.x) {
-        return null
-    }
-
     const circleResult = circle(leftSite, middleSite, rightSite)
     if (circleResult.centre.x == Infinity || circleResult.centre.y == Infinity) {
         return null
@@ -692,11 +695,10 @@ VoronoiDiagram.prototype.processVertexEvent = function(vertexEvent) {
     const edge = { 
         leftFace: leftArc.site,
         rightFace: rightArc.site,
-        firstVertex: null,
+        firstVertex: vertexEvent.vertexPoint,
         lastVertex: null
     }
 
-    this.addVertexToEdge(edge, vertexEvent.vertexPoint)
     this.edges.push(edge)
     this.updateEdge(
         leftArc.site,
@@ -718,14 +720,6 @@ VoronoiDiagram.prototype.processVertexEvent = function(vertexEvent) {
  */
 VoronoiDiagram.prototype.updateEdge = function(leftArc, rightArc, vertex) {
     const edge = this.getEdge(leftArc, rightArc)
-    this.addVertexToEdge(edge, vertex)
-}
-
-/**
- * @param {Edge} edge
- * @param {Coordinate} vertex
- */
-VoronoiDiagram.prototype.addVertexToEdge = function(edge, vertex) {
     if (edge.firstVertex == null) {
         edge.firstVertex = vertex
     }
@@ -736,26 +730,6 @@ VoronoiDiagram.prototype.addVertexToEdge = function(edge, vertex) {
         console.log('vertex addition error')
         console.log(edge)
         console.log(vertex)
-    }
-}
-
-/**
- * @param {Coordinate} leftFace
- * @param {Coordinate} rightFace
- * @param {Coordinate} vertex
- * @returns {boolean}
- */
-VoronoiDiagram.prototype.canAddVertexToEdge = function(leftFace, rightFace, vertex) {
-    const edge = this.getEdge(leftFace, rightFace)
-    if (!edge) {
-        return true
-    }
-
-    if (distanceFromPlane(edge.leftFace, edge.rightFace, vertex) > 0) {
-        return edge.firstVertex == null
-    }
-    else {
-        return edge.lastVertex == null
     }
 }
 
@@ -865,10 +839,10 @@ function verifyBeachLineIntegrity(diagram) {
 }
 
 /**
- * @param {ParabolaArc} randomArc
+ * @param {VoronoiDiagram} diagram
  */
-function logBeachLine(randomArc) {
-    let currentArc = randomArc
+function logBeachLine(diagram) {
+    let currentArc = diagram.beachLine.arcs[0]
     let traversals = 0
     while (currentArc.leftArc != null) {
         currentArc = currentArc.leftArc
@@ -877,7 +851,7 @@ function logBeachLine(randomArc) {
 
     console.log('beachline start, ' + traversals + ' traversals')
     while(currentArc != null) {
-        console.log(currentArc.site)
+        console.log(currentArc)
         currentArc = currentArc.rightArc
     }
 }
@@ -1014,7 +988,7 @@ function correctedCoordinate(coord) {
 /**@type {Coordinate[]} */
 const sites = []
 var siteCount = 0
-while (siteCount < 10) {
+while (siteCount < 4) {
     const coordinate = { x: Math.floor(Math.random() * 20), y: Math.floor(Math.random() * 20) }
     if (!sites.find(function(element) { return element.x == coordinate.x && element.y == coordinate.y })) {
         sites.push(coordinate)
@@ -1023,16 +997,10 @@ while (siteCount < 10) {
 }
 
 const diagram = new VoronoiDiagram([
-    {x: 6, y: 2},
-{x: 8, y: 9},
-{x: 10, y: 13},
-{x: 15, y: 8},
-{x: 15, y: 0},
-{x: 17, y: 1},
-{x: 3, y: 18},
-{x: 0, y: 1},
-{x: 12, y: 17},
-{x: 1, y: 18}
+    {x: 10, y: 6},
+    {x: 14, y: 6},
+    {x: 18, y: 9},
+    {x: 5, y: 5}
 ])
 
 /**
@@ -1054,16 +1022,16 @@ function logVertexEvents(diagram) {
 // logEdges(diagram)
 
 //while (!diagram.queue.isEmpty()) {
-for (var i = 0; i < 12; i++) {
+for (var i = 0; i < 3; i++) {
     diagram.computeStep()
     verifyBeachLineIntegrity(diagram)
+    logBeachLine(diagram)
 }
 
 
-// diagram.completeUnboundEdges()
+//diagram.completeUnboundEdges()
 // diagram.compute()
 
 // logEdges(diagram)
-// console.log(sites)
-// drawBeachLine(diagram)
+console.log(diagram)
 drawDiagramToCanvas(diagram)
