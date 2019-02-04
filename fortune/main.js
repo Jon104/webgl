@@ -578,27 +578,21 @@ VoronoiDiagram.prototype.updateVertexEvents = function(intersectedArc, newArc) {
         return element.arcs[2] == rightNeighbour
     })
     this.queue.removeVertexEvents([leftEvent, rightEvent])
-    const newEvents = [
-        this.getVertexEvent(newArc.leftArc),
-        this.getVertexEvent(newArc.rightArc)
-    ]
+    /**@type {VertexEvent[]} */
+    const newEvents = []
+    const newLeftEvent = this.getVertexEvent(newArc.leftArc)
+    const newRightEvent = this.getVertexEvent(newArc.rightArc)
 
-    // If the intersected arc intersects a single other arc then the two vertex events are the same event
-    if (newEvents[0] != null && newEvents[1] != null && newEvents[0].arcs[0].site == newEvents[1].arcs[2].site) {
-        // In this case check what side of the new arc the vertex is on to determine which side of the intercepted arc will disappear with the event
-        const x = newEvents[0].vertexPoint.x
-        // Left
-        if (newArc.site.x > x) {
-            this.queue.pushVertexEvents([newEvents[0]])
-        }
-        // Right
-        else {
-            this.queue.pushVertexEvents([newEvents[1]])
-        }
+    // Check that the vertex is on the same side as the arc that is to be squeezed out
+    if (newLeftEvent != null && newArc.site.x > newLeftEvent.vertexPoint.x) {
+        newEvents.push(newLeftEvent)
     }
-    else {
-        this.queue.pushVertexEvents(newEvents)
+
+    if (newRightEvent != null && newArc.site.x < newRightEvent.vertexPoint.x) {
+        newEvents.push(newRightEvent)
     }
+    
+    this.queue.pushVertexEvents(newEvents)
 
     // It is also possible that the intersected arc was a left or right member of a vertex event
     // in which case the arc will need to be replaced, however the vertex itself remains the same
@@ -636,8 +630,8 @@ VoronoiDiagram.prototype.updateVertexEventsAfterDeletedArc = function(leftArc, r
         this.getVertexEvent(rightArc)
     ]
 
-    // If the intersected arc intersects a single other arc then the two vertex events are the same event
     if (newEvents[0] != null && newEvents[1] != null && newEvents[0].arcs[0].site == newEvents[1].arcs[2].site) {
+        console.log('identical vertex events created')
         this.queue.pushVertexEvents([newEvents[0]])
     }
     else {
@@ -996,12 +990,7 @@ while (siteCount < 4) {
     }
 }
 
-const diagram = new VoronoiDiagram([
-    {x: 10, y: 6},
-    {x: 14, y: 6},
-    {x: 18, y: 9},
-    {x: 5, y: 5}
-])
+const diagram = new VoronoiDiagram(sites)
 
 /**
  * @param {VoronoiDiagram} diagram
@@ -1021,8 +1010,8 @@ function logVertexEvents(diagram) {
 
 // logEdges(diagram)
 
-//while (!diagram.queue.isEmpty()) {
-for (var i = 0; i < 3; i++) {
+while (!diagram.queue.isEmpty()) {
+//for (var i = 0; i < 5; i++) {
     diagram.computeStep()
     verifyBeachLineIntegrity(diagram)
     logBeachLine(diagram)
