@@ -450,9 +450,9 @@ VoronoiDiagram.prototype.computeStep = function() {
     else {
         console.log('Vertex event')
         console.log(nextEvent.vertexEvent.vertexPoint)
-        console.log(nextEvent.vertexEvent.arcs[0].site)
-        console.log(nextEvent.vertexEvent.arcs[1].site)
-        console.log(nextEvent.vertexEvent.arcs[2].site)
+        console.log(nextEvent.vertexEvent.arcs[0])
+        console.log(nextEvent.vertexEvent.arcs[1])
+        console.log(nextEvent.vertexEvent.arcs[2])
         console.log(nextEvent.vertexEvent.eventPoint.y)
         console.log()
         this.lineSweepPosition = nextEvent.vertexEvent.eventPoint.y
@@ -602,8 +602,9 @@ VoronoiDiagram.prototype.updateVertexEvents = function(intersectedArc, newArc) {
 /**
  * @param {ParabolaArc} leftArc
  * @param {ParabolaArc} rightArc
+ * @param {Coordinate} newEdgeVertex
  */
-VoronoiDiagram.prototype.updateVertexEventsAfterDeletedArc = function(leftArc, rightArc) {
+VoronoiDiagram.prototype.updateVertexEventsAfterDeletedArc = function(leftArc, rightArc, newEdgeVertex) {
     // The left and right arc will have had a vertex event for their left and right neighbours respectively
     // For those events the deleted arc will be replaced by the arc on the other side of the join
     const leftEvent = this.queue.vertexEvents.find(function(element) {
@@ -615,13 +616,35 @@ VoronoiDiagram.prototype.updateVertexEventsAfterDeletedArc = function(leftArc, r
     this.queue.removeVertexEvents([leftEvent, rightEvent])
     /**@type {VertexEvent[]} */
     const newEvents = []
+    const newLeftEvent = this.getVertexEvent(leftArc)
+    const newRightEvent = this.getVertexEvent(rightArc)
 
-    if (leftEvent) {
-        newEvents.push(this.getVertexEvent(leftArc))
+    const edge = this.getEdge(leftArc.site, rightArc.site)
+    // To validate the vertex events, check the existing shared vertex.
+    // If it's the left vertex and the event is to the right of it then the event is valid and vice versa
+    if (edge.leftVertex != null) {
+        if (newLeftEvent != null && newLeftEvent.vertexPoint.x > edge.leftVertex.x) {
+            newEvents.push(newLeftEvent)
+        }
+
+        if (newRightEvent != null && newRightEvent.vertexPoint.x > edge.leftVertex.x) {
+            newEvents.push(newRightEvent)
+        }
     }
+    else if (edge.rightVertex != null) {
+        if (newLeftEvent != null && newLeftEvent.vertexPoint.x < edge.rightVertex.x) {
+            newEvents.push(newLeftEvent)    
+        }
 
-    if (rightEvent) {
-        newEvents.push(this.getVertexEvent(rightArc))
+        if (newRightEvent != null && newRightEvent.vertexPoint.x < edge.rightVertex.x) {
+            newEvents.push(newRightEvent)    
+        }
+    }
+    else {
+        console.log('possible event validation error')
+        console.log(edge)
+        newEvents.push(newLeftEvent)
+        newEvents.push(newRightEvent)
     }
 
     this.queue.pushVertexEvents(newEvents)
@@ -680,7 +703,7 @@ VoronoiDiagram.prototype.processVertexEvent = function(vertexEvent) {
         deletedArc.site,
         vertexEvent.vertexPoint
     )
-    this.updateVertexEventsAfterDeletedArc(leftArc, rightArc)
+    this.updateVertexEventsAfterDeletedArc(leftArc, rightArc, vertexEvent.vertexPoint)
 }
 
 /**
@@ -1022,11 +1045,7 @@ while (siteCount < 4) {
     }
 }
 
-const diagram = new VoronoiDiagram([
-    {x: 0, y: 15},
-{x: 5, y: 10},
-{x: 7, y: 1},
-{x: 17, y: 18}])
+const diagram = new VoronoiDiagram(sites)
 
 /**
  * @param {VoronoiDiagram} diagram
