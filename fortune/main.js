@@ -36,10 +36,11 @@
  */
 /**
  * @typedef {object} Edge
- * @property {Coordinate} leftFace
- * @property {Coordinate} rightFace
- * @property {Coordinate} firstVertex
- * @property {Coordinate} lastVertex
+ * @property {Coordinate} firstFace
+ * @property {Coordinate} lastFace
+ * @property {Coordinate} leftVertex
+ * @property {Coordinate} rightVertex
+ * @property {Coordinate} middleVertex this property exists for the edge case where the bisector for two adjacent sites is vertical
  */
 
 /**
@@ -465,21 +466,11 @@ VoronoiDiagram.prototype.insertFirstSites = function() {
     if (secondSite.y > firstSite.y) {
         const firstArc = this.beachLine.addInitialArc(firstSite)
         this.beachLine.addIntersectingArc(secondSite, firstArc)
-        this.edges.push({
-            leftFace: firstSite,
-            rightFace: secondSite,
-            firstVertex: null,
-            lastVertex: null
-        })
+        this.createEdge(firstSite, secondSite)
     }
     else {
         this.beachLine.addAdjacentArcs(firstSite, secondSite)
-        this.edges.push({
-            leftFace: firstSite,
-            rightFace: secondSite,
-            firstVertex: null,
-            lastVertex: null
-        })
+        this.createEdge(firstSite, secondSite)
     }
 }
 
@@ -553,10 +544,11 @@ VoronoiDiagram.prototype.updateBeachLine = function(site, intersectedArc) {
     const newArc = this.beachLine.addIntersectingArc(site, intersectedArc)
     
     this.edges.push({
-        leftFace: site,
-        rightFace: intersectedArc.site,
-        firstVertex: null,
-        lastVertex: null
+        firstFace: site,
+        lastFace: intersectedArc.site,
+        leftVertex: null,
+        rightVertex: null,
+        middleVertex: null
     })
     this.updateVertexEvents(intersectedArc, newArc)
 }
@@ -625,18 +617,18 @@ VoronoiDiagram.prototype.updateVertexEventsAfterDeletedArc = function(leftArc, r
         return element.arcs[1] == rightArc
     })
     this.queue.removeVertexEvents([leftEvent, rightEvent])
-    const newEvents = [
-        this.getVertexEvent(leftArc),
-        this.getVertexEvent(rightArc)
-    ]
+    /**@type {VertexEvent[]} */
+    const newEvents = []
 
-    if (newEvents[0] != null && newEvents[1] != null && newEvents[0].arcs[0].site == newEvents[1].arcs[2].site) {
-        console.log('identical vertex events created')
-        this.queue.pushVertexEvents([newEvents[0]])
+    if (leftEvent) {
+        newEvents.push(this.getVertexEvent(leftArc))
     }
-    else {
-        this.queue.pushVertexEvents(newEvents)
+
+    if (rightEvent) {
+        newEvents.push(this.getVertexEvent(rightArc))
     }
+
+    this.queue.pushVertexEvents(newEvents)
 }
 
 /**
@@ -685,46 +677,76 @@ VoronoiDiagram.prototype.processVertexEvent = function(vertexEvent) {
     this.beachLine.removeArc(deletedArc)
     
     // Since there are now two newly neighbouring arcs there will also be a new edge between the arc sites
-    /**@type {Edge} */
-    const edge = { 
-        leftFace: leftArc.site,
-        rightFace: rightArc.site,
-        firstVertex: vertexEvent.vertexPoint,
-        lastVertex: null
-    }
-
-    this.edges.push(edge)
-    this.updateEdge(
-        leftArc.site,
-        deletedArc.site,
+    this.createEdgeForNewAdjacentSites(leftArc.site, rightArc.site, vertexEvent.vertexPoint)
+    this.updateEdgeForDeletedArc(
+        leftArc,
+        deletedArc,
         vertexEvent.vertexPoint
     )
-    this.updateEdge(
-        deletedArc.site,
-        rightArc.site,
+    this.updateEdgeForDeletedArc(
+        rightArc,
+        deletedArc,
         vertexEvent.vertexPoint
     )
     this.updateVertexEventsAfterDeletedArc(leftArc, rightArc)
 }
 
 /**
- * @param {Coordinate} leftArc
- * @param {Coordinate} rightArc
+ * @param {Coordinate} leftSite
+ * @param {Coordinate} rightSite
  * @param {Coordinate} vertex
  */
-VoronoiDiagram.prototype.updateEdge = function(leftArc, rightArc, vertex) {
-    const edge = this.getEdge(leftArc, rightArc)
-    if (edge.firstVertex == null) {
-        edge.firstVertex = vertex
+VoronoiDiagram.prototype.createEdgeForNewAdjacentSites = function(leftSite, rightSite, vertex) {
+    const edge = this.createEdge(leftSite, rightSite)
+    if (leftSite.y > rightSite.y) {
+        edge.leftVertex = vertex
     }
-    else if (edge.lastVertex == null) {
-        edge.lastVertex = vertex
+    else if (leftSite.y < rightSite.y) {
+        edge.rightVertex = vertex
     }
     else {
-        console.log('vertex addition error')
-        console.log(edge)
-        console.log(vertex)
+        edge.middleVertex = vertex
     }
+}
+
+/**
+ * @param {ParabolaArc} survivingArc
+ * @param {ParabolaArc} deletedArc
+ * @param {Coordinate} vertex
+ */
+VoronoiDiagram.prototype.updateEdgeForDeletedArc = function(survivingArc, deletedArc, vertex) {
+    const edge = this.getEdge(survivingArc.site, deletedArc.site)
+    // Which vertex of the edge is getting set will depend on which side of the surviving arc the deleted arc falls on
+    // Note that we have to run the comparison using the deleted arc's links because the surviving arc has had its connections changed
+    if (deletedArc.leftArc == survivingArc) {
+        edge.rightVertex = vertex
+    }
+    else if (deletedArc.rightArc == survivingArc) {
+        edge.leftVertex = vertex
+    }
+    else {
+        console.log('edge update error')
+        console.log(survivingArc)
+        console.log(deletedArc)
+    }
+}
+
+/**
+ * @param {Coordinate} firstSite
+ * @param {Coordinate} lastSite
+ * @returns {Edge}
+ */
+VoronoiDiagram.prototype.createEdge = function(firstSite, lastSite) {
+    /**@type {Edge} */
+    const edge = {
+        firstFace: firstSite,
+        lastFace: lastSite,
+        leftVertex: null,
+        rightVertex: null,
+        middleVertex: null
+    }
+    this.edges.push(edge)
+    return edge
 }
 
 /**
@@ -734,47 +756,37 @@ VoronoiDiagram.prototype.updateEdge = function(leftArc, rightArc, vertex) {
  */
 VoronoiDiagram.prototype.getEdge = function(a, b) {
     return this.edges.find(function(element) {
-        return (element.leftFace == a && element.rightFace == b) ||
-        (element.leftFace == b && element.rightFace == a)
+        return (element.firstFace == a && element.lastFace == b) ||
+        (element.firstFace == b && element.lastFace == a)
     })
 }
 
 VoronoiDiagram.prototype.completeUnboundEdges = function() {
     this.edges.forEach(function(edge) {
-        if (edge.firstVertex == null && edge.lastVertex == null) {
+        if (edge.leftVertex == null && edge.rightVertex == null) {
+            console.log('error: unvertexed edge')
             return
         }
 
-        const midpointX = (edge.leftFace.x + edge.rightFace.x) / 2
-        if (edge.firstVertex == null) {
-            const direction = midpointX - edge.lastVertex.x
-            if (direction > 0) {
-                edge.firstVertex = {
-                    x: 100,
-                    y: bisectorY(edge.leftFace, edge.rightFace, 100)
-                }
+        if (edge.middleVertex != null) {
+            if (edge.leftVertex != null) {
+                edge.rightVertex = edge.middleVertex
+            }
+            else if (edge.rightVertex != null) {
+                edge.leftVertex = edge.middleVertex
             }
             else {
-                edge.firstVertex = {
-                    x: -100,
-                    y: bisectorY(edge.leftFace, edge.rightFace, -100)
-                }
+                edge.leftVertex = edge.middleVertex
+                edge.rightVertex = { x: edge.leftVertex.x, y: 100 }
             }
+
+            edge.middleVertex = null
         }
-        else if (edge.lastVertex == null) {
-            const direction = midpointX - edge.firstVertex.x
-            if (direction > 0) {
-                edge.lastVertex = {
-                    x: 100,
-                    y: bisectorY(edge.leftFace, edge.rightFace, 100)
-                }
-            }
-            else {
-                edge.lastVertex = {
-                    x: -100,
-                    y: bisectorY(edge.leftFace, edge.rightFace, -100)
-                }
-            }
+        else if (edge.leftVertex != null) {
+            edge.rightVertex = { x: 100, y: bisectorY(edge.firstFace, edge.lastFace, 100) }
+        }
+        else {
+            edge.leftVertex = { x: -100, y: bisectorY(edge.firstFace, edge.lastFace, -100) }
         }
     })
 }
@@ -901,14 +913,14 @@ function drawDiagramToCanvas(diagram) {
     const canvas = getCanvas()
     drawLine(canvas, { x: 0, y: diagram.lineSweepPosition }, { x: 100, y: diagram.lineSweepPosition })
     diagram.edges.forEach(function(element) {
-        if (element.firstVertex != null && element.lastVertex != null) {
-            drawLine(canvas, element.firstVertex, element.lastVertex)
+        if (element.leftVertex != null && element.rightVertex != null) {
+            drawLine(canvas, element.leftVertex, element.rightVertex)
         }
-        else if (element.firstVertex != null) {
-            drawCircle(canvas, element.firstVertex, true)
+        else if (element.leftVertex != null) {
+            drawCircle(canvas, element.leftVertex, true)
         }
-        else if (element.lastVertex != null) {
-            drawCircle(canvas, element.lastVertex, true)
+        else if (element.rightVertex != null) {
+            drawCircle(canvas, element.rightVertex, true)
         }
     })
     diagram.sites.forEach(function(element) {
@@ -990,7 +1002,12 @@ while (siteCount < 4) {
     }
 }
 
-const diagram = new VoronoiDiagram(sites)
+const diagram = new VoronoiDiagram([
+    {x: 5, y: 5},
+    {x: 10, y: 6},
+    {x: 14, y: 6},
+    {x: 18, y: 9}
+])
 
 /**
  * @param {VoronoiDiagram} diagram
@@ -1018,9 +1035,10 @@ while (!diagram.queue.isEmpty()) {
 }
 
 
-//diagram.completeUnboundEdges()
+diagram.completeUnboundEdges()
 // diagram.compute()
 
 // logEdges(diagram)
+console.log(sites)
 console.log(diagram)
 drawDiagramToCanvas(diagram)
