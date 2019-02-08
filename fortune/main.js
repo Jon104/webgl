@@ -236,15 +236,38 @@ PriorityQueue.prototype.pushVertexEvents = function(values) {
  * @returns {boolean}
  */
 PriorityQueue.prototype.hasEventAlready = function(event) {
-    const activeEvent = this.vertexEvents.find(function(element) { return element.vertexPoint.x == event.vertexPoint.x && element.vertexPoint.y == event.vertexPoint.y })
+    const self = this
+    const activeEvent = this.vertexEvents.find(function(element) { return self.areVertexEventsEqual(element, event) })
     if (activeEvent == undefined) {
-        const endedEvent = this.completedVertexEvents.find(function(element) { return element.vertexPoint.x == event.vertexPoint.x && element.vertexPoint.y == event.vertexPoint.y })
+        const endedEvent = this.completedVertexEvents.find(function(element) { return self.areVertexEventsEqual(element, event) })
         if (endedEvent == undefined) {
             return false
         }
     }
     
     return true
+}
+
+/**
+ * @param {VertexEvent} a
+ * @param {VertexEvent} b
+ * @returns {boolean}
+ */
+PriorityQueue.prototype.areVertexEventsEqual = function(a, b) {
+    const equalVertexPoints = a.vertexPoint.x == b.vertexPoint.x &&
+        a.vertexPoint.y == b.vertexPoint.y
+    if (equalVertexPoints) {
+        let sameSites = true
+        a.arcs.forEach(function(element) {
+            if (sameSites) {
+                sameSites = element.site == b.arcs[0].site || element.site == b.arcs[1].site || element.site == b.arcs[2].site
+            }
+        })
+
+        return sameSites
+    }
+
+    return false
 }
 
 /**
@@ -400,10 +423,12 @@ BeachLine.prototype.removeArc = function(arc) {
 BeachLine.prototype.getArcsForSite = function(site) {
     const arcs = this.arcs.filter(function(element) { return element.site == site })
     arcs.sort(function(a, b) {
-        if (a.rightArc == null) {
+        // The arc is the rightmost arc if it's right arc is null
+        // or has a site lower than this arc (ie the right arc is not an intersector)
+        if (a.rightArc == null || a.rightArc.site.y < a.site.y) {
             return 1
         }
-        else if (b.rightArc == null) {
+        else if (b.rightArc == null || b.rightArc.site.y < b.site.y) {
             return -1
         }
         else {
@@ -602,9 +627,8 @@ VoronoiDiagram.prototype.updateVertexEvents = function(intersectedArc, newArc) {
 /**
  * @param {ParabolaArc} leftArc
  * @param {ParabolaArc} rightArc
- * @param {Coordinate} newEdgeVertex
  */
-VoronoiDiagram.prototype.updateVertexEventsAfterDeletedArc = function(leftArc, rightArc, newEdgeVertex) {
+VoronoiDiagram.prototype.updateVertexEventsAfterDeletedArc = function(leftArc, rightArc) {
     // The left and right arc will have had a vertex event for their left and right neighbours respectively
     // For those events the deleted arc will be replaced by the arc on the other side of the join
     const leftEvent = this.queue.vertexEvents.find(function(element) {
@@ -623,28 +647,41 @@ VoronoiDiagram.prototype.updateVertexEventsAfterDeletedArc = function(leftArc, r
     // To validate the vertex events, check the existing shared vertex.
     // If it's the left vertex and the event is to the right of it then the event is valid and vice versa
     if (edge.leftVertex != null) {
-        if (newLeftEvent != null && newLeftEvent.vertexPoint.x > edge.leftVertex.x) {
+        if (newLeftEvent != null && newLeftEvent.vertexPoint.x >= edge.leftVertex.x) {
             newEvents.push(newLeftEvent)
         }
 
-        if (newRightEvent != null && newRightEvent.vertexPoint.x > edge.leftVertex.x) {
+        if (newRightEvent != null && newRightEvent.vertexPoint.x >= edge.leftVertex.x) {
             newEvents.push(newRightEvent)
         }
     }
     else if (edge.rightVertex != null) {
-        if (newLeftEvent != null && newLeftEvent.vertexPoint.x < edge.rightVertex.x) {
-            newEvents.push(newLeftEvent)    
+        if (newLeftEvent != null && newLeftEvent.vertexPoint.x <= edge.rightVertex.x) {
+            newEvents.push(newLeftEvent)
         }
 
-        if (newRightEvent != null && newRightEvent.vertexPoint.x < edge.rightVertex.x) {
+        if (newRightEvent != null && newRightEvent.vertexPoint.x <= edge.rightVertex.x) {
             newEvents.push(newRightEvent)    
         }
     }
     else {
-        console.log('possible event validation error')
-        console.log(edge)
-        newEvents.push(newLeftEvent)
-        newEvents.push(newRightEvent)
+        if (edge.bottomVertex != null) {
+            if (newLeftEvent != null &&
+                newLeftEvent.vertexPoint.x == edge.bottomVertex.x) {
+                newEvents.push(newLeftEvent)
+            }
+
+            if (newRightEvent != null &&
+                newRightEvent.vertexPoint.x == edge.bottomVertex.x) {
+                newEvents.push(newRightEvent)
+            }
+        }
+        else if (edge.topVertex != null) {
+            console.log('edge assumptions were wrong')
+        }
+        else {
+            console.log('edge assumptions were very wrong')
+        }
     }
 
     this.queue.pushVertexEvents(newEvents)
@@ -703,7 +740,7 @@ VoronoiDiagram.prototype.processVertexEvent = function(vertexEvent) {
         deletedArc.site,
         vertexEvent.vertexPoint
     )
-    this.updateVertexEventsAfterDeletedArc(leftArc, rightArc, vertexEvent.vertexPoint)
+    this.updateVertexEventsAfterDeletedArc(leftArc, rightArc)
 }
 
 /**
@@ -954,7 +991,6 @@ function getCanvas() {
  */
 function drawDiagramToCanvas(diagram) {
     const canvas = getCanvas()
-    drawLine(canvas, { x: 0, y: diagram.lineSweepPosition }, { x: 100, y: diagram.lineSweepPosition })
     diagram.edges.forEach(function(element) {
         if (element.leftVertex != null && element.rightVertex != null) {
             drawLine(canvas, element.leftVertex, element.rightVertex)
@@ -1037,7 +1073,7 @@ function correctedCoordinate(coord) {
 /**@type {Coordinate[]} */
 const sites = []
 var siteCount = 0
-while (siteCount < 4) {
+while (siteCount < 12) {
     const coordinate = { x: Math.floor(Math.random() * 20), y: Math.floor(Math.random() * 20) }
     if (!sites.find(function(element) { return element.x == coordinate.x && element.y == coordinate.y })) {
         sites.push(coordinate)
@@ -1045,7 +1081,16 @@ while (siteCount < 4) {
     }
 }
 
-const diagram = new VoronoiDiagram(sites)
+const diagram = new VoronoiDiagram([
+    {x: 7, y: 8},
+{x: 13, y: 7},
+{x: 0, y: 3},
+{x: 9, y: 3},
+{x: 5, y: 9},
+{x: 10, y: 3}
+])
+
+console.log(sites)
 
 /**
  * @param {VoronoiDiagram} diagram
@@ -1077,6 +1122,5 @@ diagram.completeUnboundEdges()
 // diagram.compute()
 
 // logEdges(diagram)
-console.log(sites)
 console.log(diagram)
 drawDiagramToCanvas(diagram)
