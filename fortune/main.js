@@ -468,7 +468,6 @@ VoronoiDiagram.prototype.computeStep = function() {
         console.log('Site event')
         console.log(nextEvent.siteEvent.point)
         console.log(nextEvent.siteEvent.point.y)
-        console.log()
         this.lineSweepPosition = nextEvent.siteEvent.point.y
         this.insertSite(nextEvent.siteEvent.point)
     }
@@ -479,7 +478,6 @@ VoronoiDiagram.prototype.computeStep = function() {
         console.log(nextEvent.vertexEvent.arcs[1])
         console.log(nextEvent.vertexEvent.arcs[2])
         console.log(nextEvent.vertexEvent.eventPoint.y)
-        console.log()
         this.lineSweepPosition = nextEvent.vertexEvent.eventPoint.y
         this.processVertexEvent(nextEvent.vertexEvent)
     }
@@ -509,6 +507,8 @@ VoronoiDiagram.prototype.insertSite = function(site) {
     // highest y value is closest to the sweep line
     let closestParabolaYDistance = -Infinity;
     /**@type {Coordinate} */
+    let equidistantParabolaSite = null
+    /**@type {Coordinate} */
     let closestParabolaSite = null;
     this.sites.forEach(function(element) {
         const yDist = parabolaPointY(element, self.lineSweepPosition, site.x)
@@ -516,27 +516,28 @@ VoronoiDiagram.prototype.insertSite = function(site) {
         if (yDist != Infinity && yDist > closestParabolaYDistance) {
             closestParabolaYDistance = yDist
             closestParabolaSite = element
+            equidistantParabolaSite = null
+        }
+        else if (yDist != Infinity && yDist == closestParabolaYDistance) {
+            equidistantParabolaSite = element
         }
     })
 
-    // Test for equidistant sites
-    this.sites.forEach(function(element) {
-        const yDist = parabolaPointY(element, self.lineSweepPosition, site.x)
-        if (yDist == closestParabolaYDistance && element != closestParabolaSite) {
-            console.log('two equally distant parabolas')
-            console.log(closestParabolaSite)
-            console.log(element)
-        }
-    })
+    if (equidistantParabolaSite != null) {
+        console.log('intersects two parabolas')
+        console.log(closestParabolaSite)
+        console.log(equidistantParabolaSite)
+    }
+
     console.log('intersects')
     console.log(closestParabolaSite)
 
     const parabolaArcs = this.beachLine.getArcsForSite(closestParabolaSite)
     if (parabolaArcs.length == 0) {
-        console.log('parabola site')
+        console.log('no arcs on parabola')
         console.log(closestParabolaSite)
-        console.log()
     }
+
     /**@type {ParabolaArc} */
     let containingArc = null
     if (parabolaArcs.length == 1) {
@@ -546,7 +547,7 @@ VoronoiDiagram.prototype.insertSite = function(site) {
         // If there's more than one arc on the parabola then there's another parabola subdividing it and checking the position of the related site point
         // should indicate which arc the new site falls on
         parabolaArcs.slice(0, parabolaArcs.length - 1).forEach(function(arc) {
-            if (arc.rightArc.site.x > site.x) {
+            if (containingArc == null && arc.rightArc.site.x > site.x) {
                 containingArc = arc
                 return
             }
@@ -847,7 +848,7 @@ VoronoiDiagram.prototype.completeUnboundEdges = function() {
             }
             else {
                 edge.leftVertex = edge.bottomVertex
-                edge.rightVertex = { x: edge.bottomVertex.x, y: 100 }
+                edge.rightVertex = { x: edge.bottomVertex.x, y: 10000 }
             }
         }
         else if (edge.topVertex != null) {
@@ -859,14 +860,14 @@ VoronoiDiagram.prototype.completeUnboundEdges = function() {
             }
             else {
                 edge.rightVertex = edge.topVertex
-                edge.leftVertex = { x: edge.topVertex.x, y: -100 }
+                edge.leftVertex = { x: edge.topVertex.x, y: -10000 }
             }
         }
         else if (edge.leftVertex != null) {
-            edge.rightVertex = { x: 100, y: bisectorY(edge.firstFace, edge.lastFace, 100) }
+            edge.rightVertex = { x: 10000, y: bisectorY(edge.firstFace, edge.lastFace, 10000) }
         }
         else {
-            edge.leftVertex = { x: -100, y: bisectorY(edge.firstFace, edge.lastFace, -100) }
+            edge.leftVertex = { x: -10000, y: bisectorY(edge.firstFace, edge.lastFace, -10000) }
         }
     })
 }
@@ -981,8 +982,8 @@ function getCanvas() {
     const canvasElement = document.createElement('canvas')
     canvasElement.id = 'canvas'
     document.body.appendChild(canvasElement)
-    canvasElement.width = 10000
-    canvasElement.height = 10000
+    canvasElement.width = 2000
+    canvasElement.height = 1000
     return canvasElement.getContext('2d')
 }
 
@@ -1073,22 +1074,17 @@ function correctedCoordinate(coord) {
 /**@type {Coordinate[]} */
 const sites = []
 var siteCount = 0
-while (siteCount < 12) {
-    const coordinate = { x: Math.floor(Math.random() * 20), y: Math.floor(Math.random() * 20) }
+while (siteCount < 50) {
+    // Note: This is a shameful hack that I am not proud of, but avoiding integers as site coordinates renders some edges cases almost impossible to come across
+    // To find these cases mor easily, wrap each coordinate expression with Math.Floor()
+    const coordinate = { x: Math.random() * 20, y: Math.random() * 20 }
     if (!sites.find(function(element) { return element.x == coordinate.x && element.y == coordinate.y })) {
         sites.push(coordinate)
         siteCount++
     }
 }
 
-const diagram = new VoronoiDiagram([
-    {x: 7, y: 8},
-{x: 13, y: 7},
-{x: 0, y: 3},
-{x: 9, y: 3},
-{x: 5, y: 9},
-{x: 10, y: 3}
-])
+const diagram = new VoronoiDiagram(sites)
 
 console.log(sites)
 
@@ -1101,25 +1097,12 @@ function logVertexEvents(diagram) {
         console.log(element.arcs[0].site)
         console.log(element.arcs[1].site)
         console.log(element.arcs[2].site)
-        console.log()
         console.log(element.vertexPoint)
         console.log(element.eventPoint)
-        console.log()
     })
 }
 
-// logEdges(diagram)
-
-while (!diagram.queue.isEmpty()) {
-//for (var i = 0; i < 5; i++) {
-    diagram.computeStep()
-    verifyBeachLineIntegrity(diagram)
-    logBeachLine(diagram)
-}
-
-
-diagram.completeUnboundEdges()
-// diagram.compute()
+diagram.compute()
 
 // logEdges(diagram)
 console.log(diagram)
