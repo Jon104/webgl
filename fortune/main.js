@@ -465,19 +465,10 @@ VoronoiDiagram.prototype.compute =  function() {
 VoronoiDiagram.prototype.computeStep = function() {
     const nextEvent = this.queue.pop()
     if (nextEvent.isSiteEvent) {
-        console.log('Site event')
-        console.log(nextEvent.siteEvent.point)
-        console.log(nextEvent.siteEvent.point.y)
         this.lineSweepPosition = nextEvent.siteEvent.point.y
         this.insertSite(nextEvent.siteEvent.point)
     }
     else {
-        console.log('Vertex event')
-        console.log(nextEvent.vertexEvent.vertexPoint)
-        console.log(nextEvent.vertexEvent.arcs[0])
-        console.log(nextEvent.vertexEvent.arcs[1])
-        console.log(nextEvent.vertexEvent.arcs[2])
-        console.log(nextEvent.vertexEvent.eventPoint.y)
         this.lineSweepPosition = nextEvent.vertexEvent.eventPoint.y
         this.processVertexEvent(nextEvent.vertexEvent)
     }
@@ -529,14 +520,7 @@ VoronoiDiagram.prototype.insertSite = function(site) {
         console.log(equidistantParabolaSite)
     }
 
-    console.log('intersects')
-    console.log(closestParabolaSite)
-
     const parabolaArcs = this.beachLine.getArcsForSite(closestParabolaSite)
-    if (parabolaArcs.length == 0) {
-        console.log('no arcs on parabola')
-        console.log(closestParabolaSite)
-    }
 
     /**@type {ParabolaArc} */
     let containingArc = null
@@ -677,12 +661,6 @@ VoronoiDiagram.prototype.updateVertexEventsAfterDeletedArc = function(leftArc, r
                 newEvents.push(newRightEvent)
             }
         }
-        else if (edge.topVertex != null) {
-            console.log('edge assumptions were wrong')
-        }
-        else {
-            console.log('edge assumptions were very wrong')
-        }
     }
 
     this.queue.pushVertexEvents(newEvents)
@@ -700,11 +678,6 @@ VoronoiDiagram.prototype.getVertexEvent = function(arc) {
     const leftSite = arc.leftArc.site
     const middleSite = arc.site
     const rightSite = arc.rightArc.site
-    if (leftSite == middleSite || middleSite == rightSite || leftSite == rightSite) {
-        console.log('Circular vertex event')
-        return null
-    }
-
     const circleResult = circle(leftSite, middleSite, rightSite)
     if (circleResult.centre.x == Infinity || circleResult.centre.y == Infinity) {
         return null
@@ -1074,10 +1047,10 @@ function correctedCoordinate(coord) {
 /**@type {Coordinate[]} */
 const sites = []
 var siteCount = 0
-while (siteCount < 50) {
+while (siteCount < 500) {
     // Note: This is a shameful hack that I am not proud of, but avoiding integers as site coordinates renders some edges cases almost impossible to come across
     // To find these cases mor easily, wrap each coordinate expression with Math.Floor()
-    const coordinate = { x: Math.random() * 20, y: Math.random() * 20 }
+    const coordinate = { x: Math.random() * 30, y: Math.random() * 30 }
     if (!sites.find(function(element) { return element.x == coordinate.x && element.y == coordinate.y })) {
         sites.push(coordinate)
         siteCount++
@@ -1086,7 +1059,7 @@ while (siteCount < 50) {
 
 const diagram = new VoronoiDiagram(sites)
 
-console.log(sites)
+// console.log(sites)
 
 /**
  * @param {VoronoiDiagram} diagram
@@ -1103,7 +1076,7 @@ function logVertexEvents(diagram) {
 }
 
 diagram.compute()
+console.log('complete')
 
 // logEdges(diagram)
-console.log(diagram)
 drawDiagramToCanvas(diagram)
